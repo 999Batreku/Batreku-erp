@@ -4569,6 +4569,73 @@ function filterOutboundList() {
 // ============ API CONFIGURATION ============
 var API_BASE = '/api';
 var authToken = localStorage.getItem('batreku_token') || '';
+var SESSION_TIMEOUT = 10 * 60 * 1000; // 10分钟空闲超时
+var TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24小时 token 有效期
+
+function getLastActivity() {
+  return parseInt(localStorage.getItem('last_activity_time') || '0');
+}
+
+function setLastActivity() {
+  localStorage.setItem('last_activity_time', Date.now().toString());
+}
+
+function getLoginTime() {
+  return parseInt(localStorage.getItem('login_time') || '0');
+}
+
+function checkSessionExpiry() {
+  var now = Date.now();
+  var lastActivity = getLastActivity();
+  var loginTime = getLoginTime();
+  
+  // 检查是否超过24小时 token 有效期
+  if (loginTime && (now - loginTime) > TOKEN_EXPIRY) {
+    forceLogout('会话已过期，请重新登录');
+    return false;
+  }
+  
+  // 检查是否超过10分钟空闲
+  if (lastActivity && (now - lastActivity) > SESSION_TIMEOUT) {
+    forceLogout('长时间未操作，已自动登出');
+    return false;
+  }
+  
+  return true;
+}
+
+function forceLogout(reason) {
+  authToken = '';
+  localStorage.removeItem('batreku_token');
+  localStorage.removeItem('last_activity_time');
+  localStorage.removeItem('login_time');
+  localStorage.removeItem('currentUser');
+  if (reason) alert(reason);
+  showLoginPage();
+}
+
+// 用户活动时更新最后活动时间
+function recordActivity() {
+  setLastActivity();
+}
+
+// 监听用户活动
+['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(function(event) {
+  document.addEventListener(event, recordActivity, { passive: true });
+});
+
+// 每30秒检查一次会话状态
+setInterval(function() {
+  if (authToken) {
+    checkSessionExpiry();
+  }
+}, 30000);
+
+// 页面加载时检查会话
+if (authToken) {
+  checkSessionExpiry();
+  setLastActivity();
+}
 
 async function apiCall(method, endpoint, data) {
   var opts = {
@@ -5158,6 +5225,8 @@ async function doLogin() {
   if (btn) { btn.disabled = false; btn.innerHTML = '登 录<br><span class="text-xs opacity-70">Masuk</span>'; }
   if (res && res.success) {
     authToken = res.data.token;
+    localStorage.setItem('login_time', Date.now().toString());
+    setLastActivity();
     currentUser.name = res.data.user.real_name || username;
     currentUser.userId = res.data.user.id;
     if (res.data.user.roles && res.data.user.roles.length > 0) {
