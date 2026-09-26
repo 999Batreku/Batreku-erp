@@ -659,13 +659,14 @@ tailwind.config = {
     var codeEl = document.getElementById('approval-code-' + id);
     var remark = remarkEl ? remarkEl.value.trim() : '';
     var customerCode = codeEl ? codeEl.value.trim() : '';
+    var isOpsDirector = currentUser && currentUser.role === 'operations_director';
     if (action === 'reject' && !remark) {
       alert('驳回时必须填写审批意见');
       if (remarkEl) remarkEl.focus();
       return;
     }
-    if (action === 'approve' && !customerCode) {
-      alert('审批通过时必须输入客户编码');
+    if (action === 'approve' && isOpsDirector && !customerCode) {
+      alert('运营总监审批通过时必须输入客户编码');
       if (codeEl) codeEl.focus();
       return;
     }
