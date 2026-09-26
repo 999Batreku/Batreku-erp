@@ -611,6 +611,7 @@ tailwind.config = {
     var listEl = document.getElementById('approval-customer-list');
     var gradeBadge = {'A':'badge-blue','B':'badge-green','C':'badge-yellow','D':'badge-gray'};
     var isOpsDirector = currentUser && currentUser.role === 'operations_director';
+    console.log('审批页面渲染 - 当前角色:', currentUser ? currentUser.role : '未登录', '是否运营总监:', isOpsDirector);
     var html = '';
     for (var i = 0; i < data.length; i++) {
       var c = data[i];
