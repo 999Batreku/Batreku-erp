@@ -218,7 +218,10 @@ tailwind.config = {
 <div id="page-customer-list" class="page fade-in">
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
     <h3 class="text-lg font-semibold text-gray-800 mb-3 sm:mb-0">客户列表 <span class="text-xs text-gray-400 font-normal">/ Daftar Pelanggan</span></h3>
-    <button class="btn-primary" onclick="navigateTo('customer-new')">+ 新建客户</button>
+    <div class="flex gap-2">
+      <button id="btn-clear-customers" class="hidden bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg text-sm font-medium border border-red-200" onclick="clearAllCustomers()">🗑 清空全部</button>
+      <button class="btn-primary" onclick="navigateTo('customer-new')">+ 新建客户</button>
+    </div>
   </div>
 
   <!-- 顶部统计卡片 -->
@@ -692,6 +695,61 @@ tailwind.config = {
     }
   }
 
+  async function deleteCustomer(id, name) {
+    if (!window.confirm('确认删除客户「' + name + '」？\n此操作不可恢复。')) return;
+    try {
+      var resp = await fetch(API_BASE + '/customers/' + id, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: 'Bearer ' + authToken } : {})
+        }
+      });
+      var j = await resp.json();
+      if (j.success) {
+        alert('客户「' + name + '」已删除');
+        _customerListCache = null;
+        loadCustomerList();
+      } else {
+        alert((j.error) || '删除失败');
+      }
+    } catch (e) {
+      alert('网络错误：' + e.message);
+    }
+  }
+
+  async function clearAllCustomers() {
+    var warning1 = '⚠️ 严重警告 ⚠️\n\n即将清空【所有客户数据】！\n此操作不可恢复，所有客户信息将永久删除！\n\n确定要继续吗？';
+    if (!window.confirm(warning1)) return;
+    
+    var warning2 = '⚠️ 最后确认 ⚠️\n\n你即将删除全部客户数据！\n请输入「确认删除」四个字以继续：';
+    var input = window.prompt(warning2, '');
+    if (input !== '确认删除') {
+      alert('操作已取消');
+      return;
+    }
+    
+    try {
+      var resp = await fetch(API_BASE + '/customers/clear-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: 'Bearer ' + authToken } : {})
+        }
+      });
+      var j = await resp.json();
+      if (j.success) {
+        alert('✅ ' + j.message);
+        _customerListCache = null;
+        loadCustomerList();
+      } else {
+        alert((j.error) || '操作失败');
+      }
+    } catch (e) {
+      alert('网络错误：' + e.message);
+    }
+  }
+
   async function loadCustomerList() {
     var tbody = document.getElementById('customer-table-body');
     var pager = document.getElementById('customer-pagination');
@@ -730,7 +788,7 @@ tailwind.config = {
         + '<td class="px-5 py-3.5 text-sm text-gray-600">' + (c.whatsapp || c.phone || '-') + '</td>'
         + '<td class="px-5 py-3.5"><span class="badge ' + (gradeBadge[g] || 'badge-gray') + '">' + (gradeLabel[g] || g || '-') + '</span></td>'
         + '<td class="px-5 py-3.5">' + statusBadge(c.approval_status) + '</td>'
-        + '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-3" onclick="viewCustomer(' + c.id + ')">查看<br><span class="text-[9px]">Lihat</span></button><button class="text-gray-500 text-sm hover:underline mr-3" onclick="editCustomer(' + c.id + ')">编辑<br><span class="text-[9px]">Edit</span></button><button class="text-blue-600 text-sm hover:underline" onclick="switchPage(\'page-customer-follow-new\')">跟进<br><span class="text-[9px]">Tindak Lanjuti</span></button></td>'
+        + '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-3" onclick="viewCustomer(' + c.id + ')">查看<br><span class="text-[9px]">Lihat</span></button><button class="text-gray-500 text-sm hover:underline mr-3" onclick="editCustomer(' + c.id + ')">编辑<br><span class="text-[9px]">Edit</span></button><button class="text-blue-600 text-sm hover:underline mr-3" onclick="switchPage(\'page-customer-follow-new\')">跟进<br><span class="text-[9px]">Tindak Lanjuti</span></button>' + (currentUser && currentUser.role === 'general_manager' ? '<button class="text-red-500 text-sm hover:underline" onclick="deleteCustomer(' + c.id + ',\'' + (c.name||'').replace(/'/g,"\\'") + '\')">删除<br><span class="text-[9px]">Hapus</span></button>' : '') + '</td>'
         + '</tr>';
     }
     tbody.innerHTML = html;
@@ -5143,7 +5201,17 @@ function navigateTo(pageId) {
   var _origNavigateTo = navigateTo;
   navigateTo = function(pageId) {
     _origNavigateTo(pageId);
-    if (pageId === 'customer-list') loadCustomerList();
+    if (pageId === 'customer-list') {
+      loadCustomerList();
+      var clearBtn = document.getElementById('btn-clear-customers');
+      if (clearBtn) {
+        if (currentUser && currentUser.role === 'general_manager') {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      }
+    }
     if (pageId === 'approval-pending') loadCustomerApprovals();
     if (pageId === 'customer-follow') { loadFollowUpList(); loadFollowUpCustomerOptions(); }
     if (pageId === 'customer-follow-new') { loadFollowUpCustomerOptions(); resetFollowUpForm(); }

@@ -263,5 +263,40 @@ module.exports = function(db) {
     }
   });
 
+  // DELETE /api/customers/:id  删除客户（仅总经理）
+  router.delete('/:id', (req, res) => {
+    try {
+      const roles = (req.user && req.user.roles) || [];
+      const canDelete = roles.indexOf('general_manager') >= 0;
+      if (!canDelete) {
+        return res.status(403).json({ success: false, error: '无删除权限，仅总经理可操作' });
+      }
+
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(req.params.id);
+      if (!customer) return res.json({ success: false, error: '客户不存在' });
+
+      db.prepare('DELETE FROM customers WHERE id = ?').run(req.params.id);
+      res.json({ success: true, message: '客户已删除' });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // POST /api/customers/clear-all  清空所有客户（仅总经理）
+  router.post('/clear-all', (req, res) => {
+    try {
+      const roles = (req.user && req.user.roles) || [];
+      const canDelete = roles.indexOf('general_manager') >= 0;
+      if (!canDelete) {
+        return res.status(403).json({ success: false, error: '无权限，仅总经理可操作' });
+      }
+
+      const count = db.prepare('DELETE FROM customers').run().changes;
+      res.json({ success: true, message: '已清空 ' + count + ' 条客户数据' });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   return router;
 };
