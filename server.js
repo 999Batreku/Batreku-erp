@@ -25,6 +25,7 @@ const employeeRoutes = require('./routes/employees')(db);
 const customerRoutes = require('./routes/customers')(db);
 const followupRoutes = require('./routes/followups')(db);
 const inquiryRoutes = require('./routes/inquiries')(db);
+const adminRoutes = require('./routes/admin')(db);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,6 +51,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/followups', followupRoutes);
 app.use('/api/inquiries', inquiryRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
