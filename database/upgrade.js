@@ -2,6 +2,13 @@
 const bcrypt = require('bcryptjs');
 
 module.exports = function upgrade(db) {
+  // 0. 老版本数据库补齐 users.department 列（幂等）
+  const userCols = db.prepare('PRAGMA table_info(users)').all().map(function (c) { return c.name; });
+  if (userCols.indexOf('department') === -1) {
+    db.prepare('ALTER TABLE users ADD COLUMN department TEXT').run();
+    console.log('✅ 已为 users 表补充 department 列');
+  }
+
   // 1. 新增运营总监角色（若不存在）
   const role = db.prepare("SELECT id FROM roles WHERE name = 'operations_director'").get();
   let roleId;
