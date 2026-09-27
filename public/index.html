@@ -718,58 +718,17 @@ tailwind.config = {
   }
 
   async function deleteCustomer(id, name) {
-    if (!window.confirm('确认删除客户「' + name + '」？\n此操作不可恢复。')) return;
-    try {
-      var resp = await fetch(API_BASE + '/customers/' + id, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: 'Bearer ' + authToken } : {})
-        }
-      });
-      var j = await resp.json();
-      if (j.success) {
-        alert('客户「' + name + '」已删除');
-        _customerListCache = null;
-        loadCustomerList();
-      } else {
-        alert((j.error) || '删除失败');
-      }
-    } catch (e) {
-      alert('网络错误：' + e.message);
-    }
+    await adminDeleteRecord('customers', id, '客户「' + name + '」', function () {
+      _customerListCache = null;
+      loadCustomerList();
+    });
   }
 
   async function clearAllCustomers() {
-    var warning1 = '⚠️ 严重警告 ⚠️\n\n即将清空【所有客户数据】！\n此操作不可恢复，所有客户信息将永久删除！\n\n确定要继续吗？';
-    if (!window.confirm(warning1)) return;
-    
-    var warning2 = '⚠️ 最后确认 ⚠️\n\n你即将删除全部客户数据！\n请输入「确认删除」四个字以继续：';
-    var input = window.prompt(warning2, '');
-    if (input !== '确认删除') {
-      alert('操作已取消');
-      return;
-    }
-    
-    try {
-      var resp = await fetch(API_BASE + '/customers/clear-all', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: 'Bearer ' + authToken } : {})
-        }
-      });
-      var j = await resp.json();
-      if (j.success) {
-        alert('✅ ' + j.message);
-        _customerListCache = null;
-        loadCustomerList();
-      } else {
-        alert((j.error) || '操作失败');
-      }
-    } catch (e) {
-      alert('网络错误：' + e.message);
-    }
+    await adminClearModule('customers', '客户管理', function () {
+      _customerListCache = null;
+      loadCustomerList();
+    });
   }
 
   async function loadCustomerList() {
@@ -856,7 +815,7 @@ tailwind.config = {
           + '<td class="px-5 py-3.5 text-sm text-gray-600">' + (c.whatsapp || c.phone || '-') + '</td>'
           + '<td class="px-5 py-3.5"><span class="badge ' + (gradeBadge[g] || 'badge-gray') + '">' + (gradeLabel[g] || g || '-') + '</span></td>'
           + '<td class="px-5 py-3.5">' + statusBadge(c.approval_status) + '</td>'
-          + '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-3" onclick="viewCustomer(' + c.id + ')">查看<br><span class="text-[9px]">Lihat</span></button><button class="text-gray-500 text-sm hover:underline mr-3" onclick="editCustomer(' + c.id + ')">编辑<br><span class="text-[9px]">Edit</span></button><button class="text-blue-600 text-sm hover:underline" onclick="switchPage(\'page-customer-follow-new\')">跟进<br><span class="text-[9px]">Tindak Lanjuti</span></button></td>'
+          + '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-3" onclick="viewCustomer(' + c.id + ')">查看<br><span class="text-[9px]">Lihat</span></button><button class="text-gray-500 text-sm hover:underline mr-3" onclick="editCustomer(' + c.id + ')">编辑<br><span class="text-[9px]">Edit</span></button><button class="text-blue-600 text-sm hover:underline mr-3" onclick="switchPage(\'page-customer-follow-new\')">跟进<br><span class="text-[9px]">Tindak Lanjuti</span></button>' + (isGM() ? '<button class="text-red-500 text-sm hover:underline" onclick="deleteCustomer(' + c.id + ',\'' + (c.name||'').replace(/'/g,"\\'") + '\')">删除<br><span class="text-[9px]">Hapus</span></button>' : '') + '</td>'
           + '</tr>';
       }
       tbody.innerHTML = html;
@@ -1593,7 +1552,7 @@ function filterOutboundList() {
     var html = '';
     records.forEach(function(r) {
       var badgeCls = typeBadgeMap[r.followup_type] || 'badge badge-blue';
-      html += '<tr class="hover:bg-gray-50">';
+      html += '<tr class="hover:bg-gray-50" data-dbid="' + r.id + '">';
       html += '<td class="px-4 py-3.5 text-sm text-gray-500">' + (r.followup_date || '-') + '</td>';
       html += '<td class="px-4 py-3.5 text-sm font-mono text-brand-600">' + (r.customer_code || '-') + '</td>';
       html += '<td class="px-4 py-3.5 text-sm font-medium text-gray-900">' + (r.customer_name || '-') + '</td>';
@@ -4668,13 +4627,238 @@ async function apiCall(method, endpoint, data) {
   try {
     var res = await fetch(API_BASE + endpoint, opts);
     if (res.status === 401) { authToken = ''; localStorage.removeItem('batreku_token'); showLoginPage(); return null; }
-    if (!res.ok) { console.error('API error:', res.status, endpoint); return null; }
+    if (!res.ok) {
+      try { var ej = await res.json(); if (ej && ej.error) return { success: false, error: ej.error }; } catch (e2) {}
+      console.error('API error:', res.status, endpoint);
+      return null;
+    }
     return await res.json();
   } catch(e) {
     console.error('Network error:', e.message, endpoint);
     return null;
   }
 }
+
+// ========== 数据维护（仅总经理）==========
+function isGM() {
+  return currentUser && currentUser.role === 'general_manager';
+}
+
+// 逐条删除（带确认）。reload：删除成功后执行的刷新函数
+async function adminDeleteRecord(module, id, label, reloadFn) {
+  if (!isGM()) { alert('仅总经理可删除'); return; }
+  if (!window.confirm('确认删除该条记录？\n模块：' + label + '\nID：' + id + '\n此操作不可恢复。')) return;
+  var input = window.prompt('请输入「确认删除」四个字以继续：', '');
+  if (input !== '确认删除') { alert('操作已取消'); return; }
+  var res = await apiCall('DELETE', '/admin/' + module + '/' + id);
+  if (res && res.success) {
+    alert(res.message || '已删除');
+    if (typeof reloadFn === 'function') reloadFn();
+  } else {
+    alert((res && res.error) || '删除失败');
+  }
+}
+
+// 清空整个模块（两步确认：警告 → 输入“确认删除”）
+async function adminClearModule(module, label, reloadFn) {
+  if (!isGM()) { alert('仅总经理可操作'); return; }
+  var warning1 = '⚠️ 严重警告 ⚠️\n\n即将清空【' + label + '】模块的全部数据！\n此操作不可恢复，请确认。';
+  if (!window.confirm(warning1)) return;
+  var input = window.prompt('⚠️ 最后确认 ⚠️\n\n请输入「确认删除」四个字以继续：', '');
+  if (input !== '确认删除') { alert('操作已取消'); return; }
+  var res = await apiCall('POST', '/admin/' + module + '/clear-all');
+  if (res && res.success) {
+    alert(res.message || '已清空');
+    if (typeof reloadFn === 'function') reloadFn();
+  } else {
+    alert((res && res.error) || '清空失败');
+  }
+}
+
+// ========== 总经理数据维护（全模块：清空 + 逐条删除） ==========
+var GM_ADMIN_CONFIG = {
+  'customer-list':      {module:'customers', label:'客户管理', reload:function(){ _customerListCache=null; loadCustomerList(); }},
+  'customer-follow':    {module:'followups', label:'跟进记录', reload:function(){ loadFollowUpList(); }},
+  'inquiry-list':       {module:'inquiries', label:'询盘管理', reload:function(){ loadInquiryList(); }},
+  'quotation-list':     {module:'quotations', label:'报价管理', reload:function(){ loadQuotationData().then(function(){ renderQuotationTable(); }); }},
+  'order-list':         {module:'orders', label:'订单管理', reload:function(){ loadOrderData().then(function(){ renderOrderTable(); }); }},
+  'purchase-request':   {module:'procurement', label:'采购申请', reload:function(){ loadPurchaseData().then(function(){ renderPurchaseTable(); }); }},
+  'joyfull-inbound':    {module:'inbound', label:'JOYFULL入库记录', reload:function(){ loadWarehouseData().then(function(){ renderWarehouseInboundTable(); }); }},
+  'pabrik-inbound':     {module:'inbound', label:'PABRIK入库记录', reload:function(){ loadWarehouseData().then(function(){ renderWarehouseInboundTable(); }); }},
+  'joyfull-outbound':   {module:'outbound', label:'JOYFULL出库记录', reload:function(){ loadWarehouseData().then(function(){ renderWarehouseOutboundTable(); }); }},
+  'pabrik-outbound':    {module:'outbound', label:'PABRIK出库记录', reload:function(){ loadWarehouseData().then(function(){ renderWarehouseOutboundTable(); }); }},
+  'logistics-shipment': {module:'logistics', label:'出货物流', reload:function(){ loadLogisticsData().then(function(){ renderLogisticsTable(); }); }},
+  'production-plan':    {module:'production', label:'生产计划', reload:function(){ loadProductionData().then(function(){ renderProductionPlanTable(); }); }},
+  'finance-payment':    {module:'payments', label:'收款记录', reload:function(){ loadFinanceData().then(function(){ renderPaymentTable(); }); }},
+  'admin-hr-employee':  {module:'employees', label:'员工档案', reload:function(){ loadEmployeeData().then(function(){ renderEmployeeTable(); }); }},
+  // 纯演示数据模块（仅当前页面生效）
+  'dealer-list':              {local:true, caches:['_dealerListCache'], label:'经销商列表'},
+  'aftersales-list':          {local:true, caches:['_aftersalesListCache'], label:'售后工单'},
+  'joyfull-stock-overview':   {local:true, caches:['_joyfullStockCache'], label:'JOYFULL库存'},
+  'pabrik-stock-overview':    {local:true, caches:['_pabrikStockCache'], label:'PABRIK库存'},
+  'approval-history':         {local:true, caches:['_approvalListCache'], label:'审批历史'}
+};
+
+var GM_LOCAL_CACHE_FIELDS = {
+  '_dealerListCache': 'code', '_aftersalesListCache': 'ticket',
+  '_joyfullStockCache': 'code', '_pabrikStockCache': 'code',
+  '_approvalListCache': 'code'
+};
+
+function gmGetCurrentPageId() {
+  var active = document.querySelector('.page.active');
+  if (active) return active.id.replace(/^page-/, '');
+  var pages = document.querySelectorAll('.page');
+  for (var i = 0; i < pages.length; i++) {
+    if (pages[i].offsetParent !== null) return pages[i].id.replace(/^page-/, '');
+  }
+  var visible = document.querySelector('.page:not([style*="display: none"])');
+  return visible ? visible.id.replace(/^page-/, '') : null;
+}
+
+function gmInitToolbar(pageId, cfg) {
+  var page = document.getElementById('page-' + pageId);
+  if (!page) return;
+  var bar = document.getElementById('gm-toolbar-' + pageId);
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'gm-toolbar-' + pageId;
+    bar.className = 'mb-3';
+    bar.innerHTML = '<button class="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded-lg hover:bg-red-200 border border-red-200">🗑 清空本模块全部数据 <span class="opacity-700">/ Hapus Semua</span></button>';
+    var anchor = page.querySelector('h3, h4');
+    if (anchor) anchor.parentNode.insertBefore(bar, anchor);
+    else page.insertBefore(bar, page.firstChild);
+  }
+  bar.style.display = isGM() ? '' : 'none';
+}
+
+async function gmClearCurrent(pageId, cfg) {
+  if (!isGM()) { alert('仅总经理可操作'); return; }
+  var w1 = '⚠️ 严重警告 ⚠️\n\n即将清空【' + cfg.label + '】模块的全部数据！\n此操作不可恢复，请确认。';
+  if (!window.confirm(w1)) return;
+  var input = window.prompt('⚠️ 最后确认 ⚠️\n\n请输入「确认删除」四个字以继续：', '');
+  if (input !== '确认删除') { alert('操作已取消'); return; }
+  if (cfg.local) {
+    (cfg.caches || []).forEach(function(k){ try { window[k] = []; } catch(e){} });
+    var tbody = document.querySelector('#page-' + pageId + ' tbody');
+    if (tbody) tbody.innerHTML = '';
+    alert('已清空（演示数据，仅当前页面生效）');
+    return;
+  }
+  var res = await apiCall('POST', '/admin/' + cfg.module + '/clear-all');
+  if (res && res.success) {
+    // 同时清掉页面内置的静态演示行，避免「清空0条但仍有数据」
+    var page = document.getElementById('page-' + pageId);
+    if (page) {
+      page.querySelectorAll('tbody').forEach(function(tb){ tb.innerHTML = ''; });
+    }
+    alert(res.message || '已清空');
+    if (typeof cfg.reload === 'function') cfg.reload();
+  } else {
+    alert((res && res.error) || '清空失败');
+  }
+}
+
+function gmDecorateRows(pageId, cfg) {
+  var page = document.getElementById('page-' + pageId);
+  if (!page) return;
+  var tbodies = page.querySelectorAll('tbody');
+  tbodies.forEach(function(tbody) {
+    var rows = tbody.querySelectorAll('tr');
+    rows.forEach(function(tr) {
+      if (tr.getAttribute('data-gm-btn')) return;
+      var cells = tr.querySelectorAll('td');
+      if (!cells.length) return;
+      var last = cells[cells.length - 1];
+      if (last.querySelector('[data-gm-btn]')) return;
+      var bid = tr.getAttribute('data-dbid') || '';
+      var btn = document.createElement('button');
+      btn.setAttribute('data-gm-btn', '1');
+      btn.className = 'text-red-500 hover:text-red-700 text-xs ml-2';
+      btn.textContent = '删除/Hapus';
+      btn.dataset.pageId = pageId;
+      btn.dataset.bid = bid;
+      last.appendChild(document.createTextNode(' '));
+      last.appendChild(btn);
+    });
+  });
+}
+
+async function gmHandleDeleteClick(btn) {
+  var pageId = btn.dataset.pageId;
+  var cfg = GM_ADMIN_CONFIG[pageId];
+  if (!cfg) return;
+  if (!isGM()) { alert('仅总经理可删除'); return; }
+  var bid = btn.dataset.bid || '';
+  var w = '确认删除该条记录？\n模块：' + cfg.label + '\n此操作不可恢复。';
+  if (!window.confirm(w)) return;
+  var input = window.prompt('请输入「确认删除」四个字以继续：', '');
+  if (input !== '确认删除') { alert('操作已取消'); return; }
+  if (cfg.local || !bid) {
+    var tr = btn.closest('tr');
+    var key = tr ? tr.querySelector('td') : null;
+    var biz = key ? key.textContent.trim() : '';
+    (cfg.caches || []).forEach(function(k) {
+      try {
+        var f = GM_LOCAL_CACHE_FIELDS[k] || 'id';
+        window[k] = (window[k] || []).filter(function(r){ return String(r[f]) !== biz; });
+      } catch(e){}
+    });
+    if (tr) tr.parentNode.removeChild(tr);
+    alert('已删除' + (cfg.local ? '（演示数据，仅当前页面生效）' : ''));
+    return;
+  }
+  var res = await apiCall('DELETE', '/admin/' + cfg.module + '/' + bid);
+  if (res && res.success) {
+    alert(res.message || '已删除');
+    if (typeof cfg.reload === 'function') cfg.reload();
+  } else {
+    alert((res && res.error) || '删除失败');
+  }
+}
+
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest ? e.target.closest('[data-gm-btn]') : null;
+  if (btn) { e.preventDefault(); gmHandleDeleteClick(btn); return; }
+  var pageId = gmGetCurrentPageId();
+  if (!pageId) return;
+  var cfg = GM_ADMIN_CONFIG[pageId];
+  if (!cfg) return;
+  var bar = document.getElementById('gm-toolbar-' + pageId);
+  if (bar && (e.target === bar || bar.contains(e.target))) {
+    e.preventDefault();
+    gmClearCurrent(pageId, cfg);
+  }
+});
+
+var _gmDecorateTimer = null;
+function gmScheduleDecorate() {
+  if (_gmDecorateTimer) clearTimeout(_gmDecorateTimer);
+  _gmDecorateTimer = setTimeout(function(){
+    var pageId = gmGetCurrentPageId();
+    if (!pageId) return;
+    var cfg = GM_ADMIN_CONFIG[pageId];
+    if (!cfg) return;
+    if (!isGM()) return;
+    gmDecorateRows(pageId, cfg);
+  }, 250);
+}
+new MutationObserver(function(){ gmScheduleDecorate(); }).observe(document.body, {childList:true, subtree:true});
+
+function gmApplyAdminControls() {
+  var pageId = gmGetCurrentPageId();
+  if (!pageId) return;
+  var cfg = GM_ADMIN_CONFIG[pageId];
+  if (!cfg) return;
+  if (isGM()) {
+    gmInitToolbar(pageId, cfg);
+    gmDecorateRows(pageId, cfg);
+  } else {
+    var bar = document.getElementById('gm-toolbar-' + pageId);
+    if (bar) bar.style.display = 'none';
+  }
+}
+// ========== END 总经理数据维护 ==========
 
 function showLoginPage() {
   document.getElementById('loginPage').classList.remove('hidden');
@@ -5251,13 +5435,38 @@ async function doLogin() {
     currentUser.name = res.data.user.real_name || username;
     currentUser.userId = res.data.user.id;
     if (res.data.user.roles && res.data.user.roles.length > 0) {
-      var rawRole = res.data.user.roles[0].name || res.data.user.roles[0];
-      var roleMap = { 'technical_director': 'tech_director' };
-      var roleId = roleMap[rawRole] || rawRole;
-      if (roleDefinitions.find(function(r){ return r.id === roleId; })) {
-        currentUser.role = roleId;
-        document.getElementById('roleSwitcher').value = roleId;
+      // 后端角色 → 前端角色（完整映射）
+      var backendToFrontendRoleFull = {
+        'general_manager': 'general_manager',
+        'super_admin': 'general_manager',
+        'technical_director': 'tech_director',
+        'operations_director': 'operations_director',
+        'sales_manager': 'dept_manager',
+        'sales_rep': 'sales',
+        'procurement_manager': 'purchaser',
+        'procurement_staff': 'purchaser',
+        'warehouse_manager': 'warehouse_staff',
+        'warehouse_staff': 'warehouse_staff',
+        'production_manager': 'production_staff',
+        'production_staff': 'production_staff',
+        'finance_manager': 'finance_staff',
+        'finance_staff': 'finance_staff',
+        'hr_manager': 'admin_staff',
+        'viewer': 'admin_staff'
+      };
+      // 优先选角色列表中可识别的最高权限角色，而不是简单取第一个
+      var roleNames = res.data.user.roles.map(function(r){ return (r && r.name) || r; });
+      var priority = ['general_manager', 'super_admin', 'technical_director', 'operations_director', 'sales_manager', 'procurement_manager', 'warehouse_manager', 'production_manager', 'finance_manager', 'hr_manager', 'sales_rep'];
+      var chosen = null;
+      for (var pi = 0; pi < priority.length; pi++) {
+        if (roleNames.indexOf(priority[pi]) >= 0) { chosen = priority[pi]; break; }
       }
+      if (!chosen) chosen = roleNames[0];
+      var roleId = backendToFrontendRoleFull[chosen] || chosen;
+      if (!roleDefinitions.find(function(r){ return r.id === roleId; })) roleId = 'sales';
+      currentUser.role = roleId;
+      var roleSel = document.getElementById('roleSwitcher');
+      if (roleSel) roleSel.value = roleId;
     }
     localStorage.setItem('batreku_token', authToken);
     document.getElementById('loginPage').classList.add('hidden');
@@ -5295,13 +5504,7 @@ function navigateTo(pageId) {
     if (pageId === 'customer-list') {
       loadCustomerList();
       var clearBtn = document.getElementById('btn-clear-customers');
-      if (clearBtn) {
-        if (currentUser && currentUser.role === 'general_manager') {
-          clearBtn.classList.remove('hidden');
-        } else {
-          clearBtn.classList.add('hidden');
-        }
-      }
+      if (clearBtn) clearBtn.classList.add('hidden');
     }
     if (pageId === 'approval-pending') loadCustomerApprovals();
     if (pageId === 'customer-follow') { loadFollowUpList(); loadFollowUpCustomerOptions(); }
@@ -5318,6 +5521,7 @@ function navigateTo(pageId) {
     if (pageId === 'finance-payment') { loadFinanceData(); renderPaymentTable(); }
     if (pageId === 'finance-invoice') { loadFinanceData(); renderInvoiceTable(); }
     if (pageId === 'finance-voucher') { loadFinanceData(); renderVoucherTable(); }
+    gmApplyAdminControls();
   };
 function switchPage(id) { navigateTo(id.replace('page-','')); }
 
@@ -6305,7 +6509,7 @@ async function loadQuotationData() {
   var res = await apiCall('GET', '/quotations');
   if (res && res.success && res.data) {
     quotationData = res.data.map(function(q) {
-      return { id: q.quotation_no || ('QT-' + q.id), customer: q.customer_name || '', type: q.product_type || '工商业储能', amount: 'IDR ' + (q.total_amount || 0).toLocaleString(), date: (q.created_at || '').slice(0,10), status: q.status === 'draft' ? '草稿' : (q.status === 'pending' ? '待审批' : (q.status === 'approved' ? '已审批' : q.status || '草稿')), submitter: q.creator_name || '', department: '销售部' };
+      return { rawId: q.id, id: q.quotation_no || ('QT-' + q.id), customer: q.customer_name || '', type: q.product_type || '工商业储能', amount: 'IDR ' + (q.total_amount || 0).toLocaleString(), date: (q.created_at || '').slice(0,10), status: q.status === 'draft' ? '草稿' : (q.status === 'pending' ? '待审批' : (q.status === 'approved' ? '已审批' : q.status || '草稿')), submitter: q.creator_name || '', department: '销售部' };
     });
   }
   if (quotationData.length === 0) {
@@ -6552,6 +6756,7 @@ function renderInquiryTable() {
     var date = (item.created_at || '').slice(0, 10);
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
+    tr.setAttribute('data-dbid', item.id);
     tr.innerHTML = '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (item.inquiry_no || 'LT-' + item.id) + '</td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-500">' + date + '</td>' +
       '<td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (item.company_name || '') + '</td>' +
@@ -6582,6 +6787,7 @@ function renderQuotationTable() {
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-submitter', q.submitter || '');
     tr.setAttribute('data-department', q.department || '');
+    if (q.rawId) tr.setAttribute('data-dbid', q.rawId);
     tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + q.id + '</td>' +
       '<td class="px-5 py-3 text-sm">' + q.customer + '</td>' +
       '<td class="px-5 py-3 text-sm"><span class="badge ' + (q.type.indexOf('EPC') > -1 ? 'badge-purple' : 'badge-blue') + '">' + q.type + '</span></td>' +
@@ -6599,7 +6805,7 @@ async function loadOrderData() {
   var res = await apiCall('GET', '/orders');
   if (res && res.success && res.data) {
     orderData = res.data.map(function(o) {
-      return { id: o.order_no || ('ORD-' + o.id), customer: o.customer_name || '', amount: 'IDR ' + (o.total_amount || 0).toLocaleString(), date: (o.created_at || '').slice(0,10), status: o.status || '\u8349\u7a3f', statusKey: o.status || 'draft', submitter: o.creator_name || '', department: '\u9500\u552e\u90e8' };
+      return { rawId: o.id, id: o.order_no || ('ORD-' + o.id), customer: o.customer_name || '', amount: 'IDR ' + (o.total_amount || 0).toLocaleString(), date: (o.created_at || '').slice(0,10), status: o.status || '\u8349\u7a3f', statusKey: o.status || 'draft', submitter: o.creator_name || '', department: '\u9500\u552e\u90e8' };
     });
   }
   if (orderData.length === 0) {
@@ -6670,6 +6876,7 @@ function renderOrderTable() {
     tr.setAttribute('data-submitter', o.submitter || '');
     tr.setAttribute('data-department', o.department || '');
     tr.setAttribute('data-status-key', statusKey);
+    if (o.rawId) tr.setAttribute('data-dbid', o.rawId);
     tr.innerHTML = '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + o.id + '</td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + o.customer + '</td>' +
       '<td class="px-5 py-3.5 text-sm font-medium">' + o.amount + '</td>' +
@@ -6783,7 +6990,7 @@ async function loadPurchaseData() {
   if (res && res.success && res.data) {
     var statusLabels = { 'pending': '待审批', 'quoted': '已询价', 'approved': '已审批', 'completed': '已完成' };
     purchaseData = res.data.map(function(p) {
-      return { id: p.request_no || ('PR-' + p.id), type: p.type || 'formal', category: p.category || '', applicant: p.requester_name || '', date: (p.created_at || '').slice(0,10), status: statusLabels[p.status] || p.status || '待审批', statusKey: p.status || 'pending' };
+      return { rawId: p.id, id: p.request_no || ('PR-' + p.id), type: p.type || 'formal', category: p.category || '', applicant: p.requester_name || '', date: (p.created_at || '').slice(0,10), status: statusLabels[p.status] || p.status || '待审批', statusKey: p.status || 'pending' };
     });
   }
 }
@@ -6809,6 +7016,7 @@ function renderPurchaseTable() {
     var statusClass = p.statusKey === 'approved' || p.statusKey === 'completed' ? 'badge-green' : (p.statusKey === 'pending' || p.statusKey === 'quoted' ? 'badge-yellow' : 'badge-gray');
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
+    if (p.rawId) tr.setAttribute('data-dbid', p.rawId);
     tr.innerHTML = '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + p.id + '</td>' +
       '<td class="px-5 py-3.5"><span class="text-xs ' + (p.type === 'pre' ? 'text-amber-600 bg-amber-50' : 'text-green-600 bg-green-50') + ' px-2 py-0.5 rounded">' + (typeLabels[p.type] || p.type) + '</span></td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + p.category + '</td>' +
@@ -6830,13 +7038,13 @@ async function loadWarehouseData() {
   var resIn = await apiCall('GET', '/warehouse/inbound');
   if (resIn && resIn.success && resIn.data) {
     warehouseInboundData = resIn.data.map(function(item) {
-      return { id: item.inbound_no || ('IN-' + item.id), material: item.material_name || '综合物料', qty: item.quantity || '若干', source: item.type || '采购入库', supplier: item.supplier_name || '待确认', date: (item.created_at || '').slice(0,10), operator: item.creator_name || '', warehouse: item.warehouse_name || 'JOYFULL' };
+      return { rawId: item.id, id: item.inbound_no || ('IN-' + item.id), material: item.material_name || '综合物料', qty: item.quantity || '若干', source: item.type || '采购入库', supplier: item.supplier_name || '待确认', date: (item.created_at || '').slice(0,10), operator: item.creator_name || '', warehouse: item.warehouse_name || 'JOYFULL' };
     });
   }
   var resOut = await apiCall('GET', '/warehouse/outbound');
   if (resOut && resOut.success && resOut.data) {
     warehouseOutboundData = resOut.data.map(function(item) {
-      return { id: item.outbound_no || ('OUT-' + item.id), material: item.material_name || '综合物料', qty: item.quantity || '若干', destination: item.type || '项目领用', relatedOrder: item.order_no || '-', date: (item.created_at || '').slice(0,10), operator: item.creator_name || '', warehouse: item.warehouse_name || 'JOYFULL' };
+      return { rawId: item.id, id: item.outbound_no || ('OUT-' + item.id), material: item.material_name || '综合物料', qty: item.quantity || '若干', destination: item.type || '项目领用', relatedOrder: item.order_no || '-', date: (item.created_at || '').slice(0,10), operator: item.creator_name || '', warehouse: item.warehouse_name || 'JOYFULL' };
     });
   }
 }
@@ -6849,6 +7057,7 @@ function renderWarehouseInboundTable() {
     warehouseInboundData.filter(function(r){ return r.warehouse === 'JOYFULL'; }).forEach(function(r) {
       var tr = document.createElement('tr');
       tr.className = 'hover:bg-gray-50';
+      if (r.rawId) tr.setAttribute('data-dbid', r.rawId);
       tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-green-600">' + r.id + '</td>' +
         '<td class="px-5 py-3 text-sm">' + r.material + '</td>' +
         '<td class="px-5 py-3 text-sm font-semibold text-green-700">+' + r.qty + '</td>' +
@@ -6865,6 +7074,7 @@ function renderWarehouseInboundTable() {
     warehouseInboundData.filter(function(r){ return r.warehouse === 'PABRIK'; }).forEach(function(r) {
       var tr = document.createElement('tr');
       tr.className = 'hover:bg-gray-50';
+      if (r.rawId) tr.setAttribute('data-dbid', r.rawId);
       tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-green-600">' + r.id + '</td>' +
         '<td class="px-5 py-3 text-sm">' + r.material + '</td>' +
         '<td class="px-5 py-3 text-sm font-semibold text-green-700">+' + r.qty + '</td>' +
@@ -6883,6 +7093,7 @@ function renderWarehouseOutboundTable() {
     warehouseOutboundData.filter(function(r){ return r.warehouse === 'JOYFULL'; }).forEach(function(r) {
       var tr = document.createElement('tr');
       tr.className = 'hover:bg-gray-50';
+      if (r.rawId) tr.setAttribute('data-dbid', r.rawId);
       tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-orange-600">' + r.id + '</td>' +
         '<td class="px-5 py-3 text-sm">' + r.material + '</td>' +
         '<td class="px-5 py-3 text-sm font-semibold text-red-600">-' + r.qty + '</td>' +
@@ -6899,6 +7110,7 @@ function renderWarehouseOutboundTable() {
     warehouseOutboundData.filter(function(r){ return r.warehouse === 'PABRIK'; }).forEach(function(r) {
       var tr = document.createElement('tr');
       tr.className = 'hover:bg-gray-50';
+      if (r.rawId) tr.setAttribute('data-dbid', r.rawId);
       tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-orange-600">' + r.id + '</td>' +
         '<td class="px-5 py-3 text-sm">' + r.material + '</td>' +
         '<td class="px-5 py-3 text-sm font-semibold text-red-600">-' + r.qty + '</td>' +
@@ -6917,7 +7129,7 @@ async function loadLogisticsData() {
   var res = await apiCall('GET', '/logistics');
   if (res && res.success && res.data) {
     logisticsData = res.data.map(function(l) {
-      return { id: l.shipment_no || ('SHP-' + l.id), order: l.order_no || '', customer: l.customer_name || '', date: (l.shipped_at || l.created_at || '').slice(0,10), carrier: l.carrier || '', status: l.status || '在途' };
+      return { rawId: l.id, id: l.shipment_no || ('SHP-' + l.id), order: l.order_no || '', customer: l.customer_name || '', date: (l.shipped_at || l.created_at || '').slice(0,10), carrier: l.carrier || '', status: l.status || '在途' };
     });
   }
   if (logisticsData.length === 0) {
@@ -6939,6 +7151,7 @@ function renderLogisticsTable() {
     var statusClass = l.status.indexOf('已签收') > -1 ? 'badge-green' : (l.status.indexOf('在途') > -1 ? 'badge-blue' : 'badge-orange');
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
+    if (l.rawId) tr.setAttribute('data-dbid', l.rawId);
     tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + l.id + '</td>' +
       '<td class="px-5 py-3 text-sm text-gray-500">' + l.order + '</td>' +
       '<td class="px-5 py-3 text-sm">' + l.customer + '</td>' +
@@ -6957,7 +7170,7 @@ async function loadProductionData() {
   var resP = await apiCall('GET', '/production/plans');
   if (resP && resP.success && resP.data) {
     productionPlanData = resP.data.map(function(p) {
-      return { id: p.plan_no || ('PP-' + p.id), product: p.product_name || '', qty: p.quantity || '', startDate: (p.start_date || '').slice(0,10), endDate: (p.end_date || '').slice(0,10), status: p.status || '待排产' };
+      return { rawId: p.id, id: p.plan_no || ('PP-' + p.id), product: p.product_name || '', qty: p.quantity || '', startDate: (p.start_date || '').slice(0,10), endDate: (p.end_date || '').slice(0,10), status: p.status || '待排产' };
     });
   }
   if (productionPlanData.length === 0) {
@@ -6982,6 +7195,7 @@ function renderProductionPlanTable() {
     var statusClass = p.status.indexOf('已完成') > -1 ? 'badge-green' : (p.status.indexOf('进行中') > -1 ? 'badge-blue' : 'badge-orange');
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
+    if (p.rawId) tr.setAttribute('data-dbid', p.rawId);
     tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + p.id + '</td>' +
       '<td class="px-5 py-3 text-sm">' + p.product + '</td>' +
       '<td class="px-5 py-3 text-sm">' + p.qty + '</td>' +
@@ -7018,7 +7232,7 @@ async function loadFinanceData() {
   var resPay = await apiCall('GET', '/finance/payments');
   if (resPay && resPay.success && resPay.data) {
     paymentData = resPay.data.map(function(p) {
-      return { id: p.payment_no || ('PAY-' + p.id), order: p.order_no || '', customer: p.customer_name || '', receivable: 'IDR ' + (p.receivable_amount || 0).toLocaleString(), received: 'IDR ' + (p.received_amount || 0).toLocaleString(), method: p.payment_method || '转账', date: (p.payment_date || p.created_at || '').slice(0,10), status: p.status === 'confirmed' ? '已到账' : (p.status || '待确认'), dataStatus: p.status || 'completed' };
+      return { rawId: p.id, id: p.payment_no || ('PAY-' + p.id), order: p.order_no || '', customer: p.customer_name || '', receivable: 'IDR ' + (p.receivable_amount || 0).toLocaleString(), received: 'IDR ' + (p.received_amount || 0).toLocaleString(), method: p.payment_method || '转账', date: (p.payment_date || p.created_at || '').slice(0,10), status: p.status === 'confirmed' ? '已到账' : (p.status || '待确认'), dataStatus: p.status || 'completed' };
     });
   }
   if (paymentData.length === 0) {
@@ -7046,6 +7260,7 @@ function renderPaymentTable() {
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-status', p.dataStatus || 'completed');
+    if (p.rawId) tr.setAttribute('data-dbid', p.rawId);
     tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + p.id + '</td>' +
       '<td class="px-5 py-3 text-sm text-gray-500">' + p.order + '</td>' +
       '<td class="px-5 py-3 text-sm">' + p.customer + '</td>' +
@@ -7102,7 +7317,7 @@ async function loadEmployeeData() {
   var res = await apiCall('GET', '/employees');
   if (res && res.success && res.data && res.data.length > 0) {
     employees = res.data.map(function(e) {
-      return { id: e.employee_no || ('EMP-' + e.id), name: e.name || '', gender: e.gender || '男', dept: e.department || '', position: e.position || '', hireDate: (e.hire_date || '').slice(0,10), contractEnd: e.contract_end || '无固定期限', status: e.status === 'active' ? '在职' : (e.status || '在职'), phone: e.phone || '', email: e.email || '' };
+      return { rawId: e.id, id: e.employee_no || ('EMP-' + e.id), name: e.name || '', gender: e.gender || '男', dept: e.department || '', position: e.position || '', hireDate: (e.hire_date || '').slice(0,10), contractEnd: e.contract_end || '无固定期限', status: e.status === 'active' ? '在职' : (e.status || '在职'), phone: e.phone || '', email: e.email || '' };
     });
   }
 }
@@ -7117,6 +7332,7 @@ function renderEmployeeTable() {
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-name', emp.name);
     tr.setAttribute('data-dept', emp.dept);
+    if (emp.rawId) tr.setAttribute('data-dbid', emp.rawId);
     tr.innerHTML = '<td class="px-5 py-3"><div><div class="text-sm font-medium">' + emp.name + '</div><div class="text-xs text-gray-400">' + emp.id + '</div></div></td>' +
       '<td class="px-5 py-3 text-sm">' + emp.dept + '</td>' +
       '<td class="px-5 py-3 text-sm">' + emp.position + '</td>' +
