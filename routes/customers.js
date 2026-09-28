@@ -158,6 +158,10 @@ module.exports = function(db) {
       }
 
       const remark = (req.body && req.body.remark) || '';
+      const signature = (req.body && req.body.signature) || '';
+      if (!signature || signature.indexOf('data:image') !== 0) {
+        return res.status(400).json({ success: false, error: '审批通过必须签署电子签名' });
+      }
       const approverName = (req.user.real_name || req.user.username || '') + '';
       await db.run(`
         UPDATE customers SET
@@ -165,10 +169,16 @@ module.exports = function(db) {
           customer_code = ?,
           approved_by = ?,
           approval_remark = ?,
+          approval_signature = ?,
           approved_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [code, approverName, remark, req.params.id]);
+      `, [code, approverName, remark, signature, req.params.id]);
+
+      await db.run(
+        'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+        ['customer', req.params.id, 'approve', req.user.id, remark || '审批通过']
+      );
 
       const updated = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
       res.json({ success: true, data: updated, message: '已审批通过，客户编码 ' + code });
@@ -197,6 +207,11 @@ module.exports = function(db) {
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [approverName, remark, req.params.id]);
+
+      await db.run(
+        'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+        ['customer', req.params.id, 'reject', req.user.id, remark || '驳回']
+      );
 
       const updated = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
       res.json({ success: true, data: updated, message: '已驳回' });
