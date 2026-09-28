@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS customers (
   approved_by TEXT,
   approval_remark TEXT,
   approved_at TEXT,
+  approval_signature TEXT,
   status INTEGER DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -469,8 +470,14 @@ async function seedFresh(t) {
     ['东莞储能科技', 'Kevin', '+8613800002222', '储能电池']);
 }
 
+// 幂等补列：为已存在的老库补充新字段（Postgres 无原生 ADD COLUMN IF NOT EXISTS 兼容问题，直接用即可）
+async function ensureColumns() {
+  await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS approval_signature TEXT', []);
+}
+
 async function initDatabase() {
   await db.query(DDL, []);
+  await ensureColumns();
 
   const check = await db.get('SELECT COUNT(*)::int AS n FROM users', []);
   if (check.n === 0) {
