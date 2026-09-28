@@ -25,7 +25,8 @@ const inquiryRoutes = require('./routes/inquiries');
 const adminRoutes = require('./routes/admin');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// 固定监听 3000，与 Railway Public Domain 绑定的目标端口保持一致（process.env.PORT 为随机值会导致 502）
+const PORT = 3000;
 
 // Middleware
 app.use(cors());
