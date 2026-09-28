@@ -4919,6 +4919,54 @@ function canApprove() {
 function canCreateForm() {
   return true; // 所有角色都可以创建表单，但只能看自己的数据
 }
+// 新建按钮权限配置：pageId -> 允许的角色数组
+var CREATE_PERMISSIONS = {
+  'customer-new': ['sales', 'dept_manager', 'general_manager'],
+  'inquiry-new': ['sales', 'dept_manager', 'general_manager'],
+  'quotation-new': ['sales', 'dept_manager', 'general_manager'],
+  'order-new': ['sales', 'dept_manager', 'general_manager'],
+  'admin-hr-employee': ['admin_staff', 'general_manager'],
+  'hr-employee-new': ['admin_staff', 'general_manager'],
+  'dealer-application': ['sales', 'general_manager'],
+  'purchase-new': ['purchaser'],
+  'joyfull-inbound-request': ['warehouse_staff'],
+  'pabrik-inbound-request': ['warehouse_staff'],
+  'joyfull-outbound-request': ['warehouse_staff'],
+  'pabrik-outbound-request': ['warehouse_staff'],
+  'production-plan-new': ['production_staff'],
+  'finance-payment-new': ['finance_staff']
+};
+function canCreate(pageId) {
+  var roles = CREATE_PERMISSIONS[pageId];
+  if (!roles) return true; // 未在配置中的页面不做限制
+  return currentUser && roles.indexOf(currentUser.role) >= 0;
+}
+function applySidebarPermissions() {
+  // 遍历侧边栏所有子菜单项，若对应页面在 CREATE_PERMISSIONS 中且用户无权限，则隐藏
+  document.querySelectorAll('#sidebarNav .sub-nav-item').forEach(function(item) {
+    var onclick = item.getAttribute('onclick') || '';
+    var m = onclick.match(/navigateTo\(['"]([^'"]+)['"]\)/);
+    if (m) {
+      var targetPage = m[1];
+      if (CREATE_PERMISSIONS[targetPage] !== undefined) {
+        item.style.display = canCreate(targetPage) ? '' : 'none';
+      } else {
+        item.style.display = '';
+      }
+    }
+  });
+  // 同时处理顶级无子菜单项
+  document.querySelectorAll('#sidebarNav .nav-item').forEach(function(item) {
+    var onclick = item.getAttribute('onclick') || '';
+    var m = onclick.match(/navigateTo\(['"]([^'"]+)['"]\)/);
+    if (m) {
+      var targetPage = m[1];
+      if (CREATE_PERMISSIONS[targetPage] !== undefined) {
+        item.parentElement.style.display = canCreate(targetPage) ? '' : 'none';
+      }
+    }
+  });
+}
 function canEditForm(submitterId) {
   return currentUser.userId === submitterId;
 }
@@ -5266,6 +5314,23 @@ function refreshCurrentPagePermissions() {
   createButtons.forEach(function(btn) {
     btn.style.display = canCreateForm() ? '' : 'none';
   });
+  // 按角色控制页面内提交/新建按钮可见性
+  document.querySelectorAll('.page').forEach(function(page) {
+    var pid = page.id.replace('page-', '');
+    if (CREATE_PERMISSIONS[pid] !== undefined) {
+      var allowed = canCreate(pid);
+      // 隐藏/显示页面内的主按钮（submit类、primary按钮、btn-create-new）
+      page.querySelectorAll('.btn-success, .btn-primary, .btn-create-new, button[onclick*="submit"]').forEach(function(btn) {
+        // 不隐藏审批按钮（通过/驳回），只控制提交类按钮
+        var oc = btn.getAttribute('onclick') || '';
+        var txt = (btn.textContent || '').toLowerCase();
+        if (txt.indexOf('通过') >= 0 || txt.indexOf('驳回') >= 0 || txt.indexOf('setuju') >= 0 || txt.indexOf('tolak') >= 0) return;
+        btn.style.display = allowed ? '' : 'none';
+      });
+    }
+  });
+  // 侧边栏菜单项按权限隐藏
+  applySidebarPermissions();
 }
 
 // ============ NAV STRUCTURE ============
