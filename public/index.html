@@ -545,6 +545,10 @@ tailwind.config = {
       }
     } else {
       // 新建模式
+      if (currentUser && currentUser.role === 'general_manager') {
+        data.created_by_role = 'general_manager';
+        data.creator_note = '由总经理新建 / Dibuat oleh General Manager';
+      }
       res = await apiCall('POST', '/customers', data);
       if (res && res.success) {
         var code = res.data.customer_code;
@@ -761,9 +765,10 @@ tailwind.config = {
     for (var i = 0; i < data.length; i++) {
       var c = data[i];
       var g = normGrade(c.grade);
+      var gmBadge = c.created_by_role === 'general_manager' ? ' <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
       html += '<tr class="hover:bg-gray-50">'
         + '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (c.customer_code || 'CUS-' + String(c.id).padStart(3,'0')) + '</td>'
-        + '<td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (c.name || '') + '</td>'
+        + '<td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (c.name || '') + gmBadge + '</td>'
         + '<td class="px-5 py-3.5 text-sm text-gray-500 font-mono">' + (c.tax_number || '-') + '</td>'
         + '<td class="px-5 py-3.5 text-sm text-gray-700">' + (c.contact_person || '-') + '</td>'
         + '<td class="px-5 py-3.5 text-sm text-gray-600">' + (c.whatsapp || c.phone || '-') + '</td>'
@@ -807,9 +812,10 @@ tailwind.config = {
       for (var i = 0; i < filtered.length; i++) {
         var c = filtered[i];
         var g = normGrade(c.grade);
+        var gmBadge = c.created_by_role === 'general_manager' ? ' <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
         html += '<tr class="hover:bg-gray-50">'
           + '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (c.customer_code || 'CUS-' + String(c.id).padStart(3,'0')) + '</td>'
-          + '<td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (c.name || '') + '</td>'
+          + '<td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (c.name || '') + gmBadge + '</td>'
           + '<td class="px-5 py-3.5 text-sm text-gray-500 font-mono">' + (c.tax_number || '-') + '</td>'
           + '<td class="px-5 py-3.5 text-sm text-gray-700">' + (c.contact_person || '-') + '</td>'
           + '<td class="px-5 py-3.5 text-sm text-gray-600">' + (c.whatsapp || c.phone || '-') + '</td>'
@@ -824,6 +830,39 @@ tailwind.config = {
   }
 
 // ========== 经销商列表筛选 ==========
+function submitDealerApplication() {
+  var page = document.getElementById('page-dealer-application');
+  var inputs = page.querySelectorAll('input[type="text"], input[type="date"], input[type="number"]');
+  var selects = page.querySelectorAll('select');
+  var textarea = page.querySelector('textarea');
+  var payload = {
+    company_name: inputs[0] ? inputs[0].value.trim() : '',
+    credit_code: inputs[1] ? inputs[1].value.trim() : '',
+    legal_representative: inputs[2] ? inputs[2].value.trim() : '',
+    phone: document.getElementById('inq-phone') ? document.getElementById('inq-phone').value.trim() : '',
+    address: inputs[3] ? inputs[3].value.trim() : '',
+    target_region: inputs[4] ? inputs[4].value.trim() : '',
+    estimated_annual_sales: selects[0] ? selects[0].value : '',
+    showroom_area: inputs[5] ? inputs[5].value.trim() : '',
+    technician_count: inputs[6] ? inputs[6].value : '',
+    main_industry: selects[1] ? selects[1].value : '',
+    founded_date: inputs[7] ? inputs[7].value : '',
+    notes: textarea ? textarea.value.trim() : '',
+    status: 'pending'
+  };
+  if (!payload.company_name) { alert('请填写公司名称 / Masukkan nama perusahaan'); return; }
+  if (!payload.legal_representative) { alert('请填写法定代表人 / Masukkan perwakilan hukum'); return; }
+  if (!payload.phone) { alert('请填写联系电话 / Masukkan nomor telepon'); return; }
+  if (!payload.address) { alert('请填写公司地址 / Masukkan alamat perusahaan'); return; }
+  if (!payload.target_region) { alert('请填写代理区域 / Masukkan wilayah agency'); return; }
+  if (currentUser && currentUser.role === 'general_manager') {
+    payload.created_by_role = 'general_manager';
+    payload.creator_note = '由总经理新建 / Dibuat oleh General Manager';
+  }
+  alert('准入申请已提交 / Permohonan akses telah dikirim');
+  navigateTo('dealer-list');
+}
+
 var _dealerListCache = [];
 function filterDealerList() {
   var search = (document.getElementById('dealer-filter-search').value || '').toLowerCase();
@@ -873,7 +912,8 @@ function filterDealerList() {
     var s = '';
     for (var k2 in statusMap) { if ((r.status || '').indexOf(k2) > -1) { s = statusMap[k2]; break; } }
     if (!s) s = r.status || '';
-    html += '<tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (r.code||'') + '</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (r.name||'') + '</td><td class="px-5 py-3.5 text-sm text-gray-700">' + (r.region||'') + '</td><td class="px-5 py-3.5">' + g + '</td><td class="px-5 py-3.5 text-sm text-gray-500">' + (r.date||'') + '</td><td class="px-5 py-3.5">' + s + '</td><td class="px-5 py-3.5 text-sm text-gray-700">' + (r.manager||'') + '</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[9px] text-gray-400">Detail</span></button></td></tr>';
+    var gmBadge = r.created_by_role === 'general_manager' ? ' <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
+    html += '<tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (r.code||'') + '</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (r.name||'') + gmBadge + '</td><td class="px-5 py-3.5 text-sm text-gray-700">' + (r.region||'') + '</td><td class="px-5 py-3.5">' + g + '</td><td class="px-5 py-3.5 text-sm text-gray-500">' + (r.date||'') + '</td><td class="px-5 py-3.5">' + s + '</td><td class="px-5 py-3.5 text-sm text-gray-700">' + (r.manager||'') + '</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[9px] text-gray-400">Detail</span></button></td></tr>';
   });
   tbody.innerHTML = html;
   var pag = document.querySelector('#page-dealer-list .text-gray-500');
@@ -3933,7 +3973,7 @@ function filterOutboundList() {
       <div><label class="block text-sm font-medium text-gray-700 mb-1">资质证书 <span class="text-xs text-gray-400">/ Sertifikat Kualifikasi</span></label><div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-sm text-gray-400 hover:border-brand-400 cursor-pointer">📎 点击上传相关资质证书 / Klik untuk mengunggah sertifikat kualifikasi</div></div>
     </div>
     <div class="mt-4"><label class="block text-sm font-medium text-gray-700 mb-1">申请备注 <span class="text-xs text-gray-400">/ Catatan Permohonan</span></label><textarea rows="3" placeholder="补充说明... / Keterangan tambahan..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="mt-6 flex gap-3"><button class="btn-primary">提交申请 <span class="text-xs opacity-80">/ Kirim Permohonan</span></button><button class="btn-secondary" onclick="navigateTo('dealer-list')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="mt-6 flex gap-3"><button class="btn-primary" onclick="submitDealerApplication()">提交申请 <span class="text-xs opacity-80">/ Kirim Permohonan</span></button><button class="btn-secondary" onclick="navigateTo('dealer-list')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -6484,7 +6524,8 @@ function saveEmployee(continueAdd) {
     dept: deptSel ? deptSel.value : '销售部',
     position: '员工', hireDate: new Date().toISOString().slice(0,10),
     contractEnd: '待定', status: '在职',
-    phone: '', email: ''
+    phone: '', email: '',
+    created_by_role: (currentUser && currentUser.role === 'general_manager') ? 'general_manager' : ''
   };
   // Try to get more fields
   var allInputs = page.querySelectorAll('input:not([readonly]):not([type=checkbox]):not([type=file])');
@@ -6589,7 +6630,7 @@ async function loadQuotationData() {
   var res = await apiCall('GET', '/quotations');
   if (res && res.success && res.data) {
     quotationData = res.data.map(function(q) {
-      return { rawId: q.id, id: q.quotation_no || ('QT-' + q.id), customer: q.customer_name || '', type: q.product_type || '工商业储能', amount: 'IDR ' + (q.total_amount || 0).toLocaleString(), date: (q.created_at || '').slice(0,10), status: q.status === 'draft' ? '草稿' : (q.status === 'pending' ? '待审批' : (q.status === 'approved' ? '已审批' : q.status || '草稿')), submitter: q.creator_name || '', department: '销售部' };
+      return { rawId: q.id, id: q.quotation_no || ('QT-' + q.id), customer: q.customer_name || '', type: q.product_type || '工商业储能', amount: 'IDR ' + (q.total_amount || 0).toLocaleString(), date: (q.created_at || '').slice(0,10), status: q.status === 'draft' ? '草稿' : (q.status === 'pending' ? '待审批' : (q.status === 'approved' ? '已审批' : q.status || '草稿')), submitter: q.creator_name || '', department: '销售部', created_by_role: q.created_by_role || '' };
     });
   }
   if (quotationData.length === 0) {
@@ -6752,6 +6793,10 @@ async function submitQuotation(status) {
     notes: notes ? notes.value : '',
     items: items
   };
+  if (currentUser && currentUser.role === 'general_manager') {
+    payload.created_by_role = 'general_manager';
+    payload.creator_note = '由总经理新建 / Dibuat oleh General Manager';
+  }
 
   var res = await apiCall('POST', '/quotations', payload);
   if (res && res.success) {
@@ -6788,6 +6833,10 @@ async function submitInquiry(status) {
     notes: document.getElementById('inq-notes') ? document.getElementById('inq-notes').value.trim() : '',
     status: status || 'new'
   };
+  if (currentUser && currentUser.role === 'general_manager') {
+    payload.created_by_role = 'general_manager';
+    payload.creator_note = '由总经理新建 / Dibuat oleh General Manager';
+  }
 
   var res = await apiCall('POST', '/inquiries', payload);
   if (res && res.success) {
@@ -6834,10 +6883,11 @@ function renderInquiryTable() {
   inquiryData.forEach(function(item) {
     var st = statusMap[item.status] || {zh: item.status || '待跟进', cls: 'badge-blue'};
     var date = (item.created_at || '').slice(0, 10);
+    var gmBadge = item.created_by_role === 'general_manager' ? ' <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-dbid', item.id);
-    tr.innerHTML = '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (item.inquiry_no || 'LT-' + item.id) + '</td>' +
+    tr.innerHTML = '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (item.inquiry_no || 'LT-' + item.id) + gmBadge + '</td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-500">' + date + '</td>' +
       '<td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (item.company_name || '') + '</td>' +
       '<td class="px-5 py-3.5 text-sm"><span class="badge ' + st.cls + '">' + st.zh + '</span>' + (item.source_detail ? '<br><span class="text-xs text-gray-400">' + item.source_detail + '</span>' : '') + '</td>' +
@@ -6902,12 +6952,13 @@ function renderQuotationTable() {
   tbody.innerHTML = '';
   quotationData.forEach(function(q, idx) {
     var statusClass = q.status.indexOf('草稿') > -1 ? 'badge-gray' : (q.status.indexOf('审批') > -1 ? 'badge-orange' : 'badge-green');
+    var gmBadge = q.created_by_role === 'general_manager' ? ' <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-submitter', q.submitter || '');
     tr.setAttribute('data-department', q.department || '');
     if (q.rawId) tr.setAttribute('data-dbid', q.rawId);
-    tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + q.id + '</td>' +
+    tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + q.id + gmBadge + '</td>' +
       '<td class="px-5 py-3 text-sm">' + q.customer + '</td>' +
       '<td class="px-5 py-3 text-sm"><span class="badge ' + (q.type.indexOf('EPC') > -1 ? 'badge-purple' : 'badge-blue') + '">' + q.type + '</span></td>' +
       '<td class="px-5 py-3 text-sm font-semibold">' + q.amount + '</td>' +
@@ -6924,7 +6975,7 @@ async function loadOrderData() {
   var res = await apiCall('GET', '/orders');
   if (res && res.success && res.data) {
     orderData = res.data.map(function(o) {
-      return { rawId: o.id, id: o.order_no || ('ORD-' + o.id), customer: o.customer_name || '', amount: 'IDR ' + (o.total_amount || 0).toLocaleString(), date: (o.created_at || '').slice(0,10), status: o.status || '\u8349\u7a3f', statusKey: o.status || 'draft', submitter: o.creator_name || '', department: '\u9500\u552e\u90e8' };
+      return { rawId: o.id, id: o.order_no || ('ORD-' + o.id), customer: o.customer_name || '', amount: 'IDR ' + (o.total_amount || 0).toLocaleString(), date: (o.created_at || '').slice(0,10), status: o.status || '\u8349\u7a3f', statusKey: o.status || 'draft', submitter: o.creator_name || '', department: '\u9500\u552e\u90e8', created_by_role: o.created_by_role || '' };
     });
   }
   if (orderData.length === 0) {
@@ -6990,13 +7041,14 @@ function renderOrderTable() {
     var statusKey = o.statusKey || o.status || 'draft';
     var statusText = statusLabels[statusKey] || statusKey || '草稿';
     var badgeClass = statusBadgeClass[statusKey] || 'badge-gray';
+    var gmBadge = o.created_by_role === 'general_manager' ? ' <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-submitter', o.submitter || '');
     tr.setAttribute('data-department', o.department || '');
     tr.setAttribute('data-status-key', statusKey);
     if (o.rawId) tr.setAttribute('data-dbid', o.rawId);
-    tr.innerHTML = '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + o.id + '</td>' +
+    tr.innerHTML = '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + o.id + gmBadge + '</td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + o.customer + '</td>' +
       '<td class="px-5 py-3.5 text-sm font-medium">' + o.amount + '</td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-500">' + o.date + '</td>' +
@@ -7040,6 +7092,10 @@ async function submitOrder(status) {
     items: items,
     status: status || 'contract_pending'
   };
+  if (currentUser && currentUser.role === 'general_manager') {
+    payload.created_by_role = 'general_manager';
+    payload.creator_note = '由总经理新建 / Dibuat oleh General Manager';
+  }
   var res = await apiCall('POST', '/orders', payload);
   if (res && res.success) {
     alert('\u8ba2\u5355\u521b\u5efa\u6210\u529f');
@@ -7436,7 +7492,7 @@ async function loadEmployeeData() {
   var res = await apiCall('GET', '/employees');
   if (res && res.success && res.data && res.data.length > 0) {
     employees = res.data.map(function(e) {
-      return { rawId: e.id, id: e.employee_no || ('EMP-' + e.id), name: e.name || '', gender: e.gender || '男', dept: e.department || '', position: e.position || '', hireDate: (e.hire_date || '').slice(0,10), contractEnd: e.contract_end || '无固定期限', status: e.status === 'active' ? '在职' : (e.status || '在职'), phone: e.phone || '', email: e.email || '' };
+      return { rawId: e.id, id: e.employee_no || ('EMP-' + e.id), name: e.name || '', gender: e.gender || '男', dept: e.department || '', position: e.position || '', hireDate: (e.hire_date || '').slice(0,10), contractEnd: e.contract_end || '无固定期限', status: e.status === 'active' ? '在职' : (e.status || '在职'), phone: e.phone || '', email: e.email || '', created_by_role: e.created_by_role || '' };
     });
   }
 }
@@ -7447,12 +7503,13 @@ function renderEmployeeTable() {
   tbody.innerHTML = '';
   employees.forEach(function(emp) {
     var statusClass = emp.status === '在职' ? 'badge-green' : 'badge-red';
+    var gmBadge = emp.created_by_role === 'general_manager' ? ' <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-name', emp.name);
     tr.setAttribute('data-dept', emp.dept);
     if (emp.rawId) tr.setAttribute('data-dbid', emp.rawId);
-    tr.innerHTML = '<td class="px-5 py-3"><div><div class="text-sm font-medium">' + emp.name + '</div><div class="text-xs text-gray-400">' + emp.id + '</div></div></td>' +
+    tr.innerHTML = '<td class="px-5 py-3"><div><div class="text-sm font-medium">' + emp.name + gmBadge + '</div><div class="text-xs text-gray-400">' + emp.id + '</div></div></td>' +
       '<td class="px-5 py-3 text-sm">' + emp.dept + '</td>' +
       '<td class="px-5 py-3 text-sm">' + emp.position + '</td>' +
       '<td class="px-5 py-3"><span class="badge ' + statusClass + '">' + emp.status + '</span></td>' +
