@@ -6774,7 +6774,46 @@ function renderInquiryTable() {
 }
 
 function viewInquiry(id) {
-  alert('询盘详情功能开发中 / Fitur detail permintaan dalam pengembangan\nID: ' + id);
+  apiCall('GET', '/inquiries/' + id).then(function(res) {
+    if (!res || !res.success || !res.data) { alert('询盘数据加载失败 / Data permintaan gagal dimuat'); return; }
+    var d = res.data;
+    var statusMap = {'new':'待跟进 / Belum ditindaklanjuti','following':'跟进中 / Sedang ditindaklanjuti','quoted':'已报价 / Sudah di-quote','won':'已成交 / Deal','lost':'已流失 / Hilang','closed':'已关闭 / Ditutup'};
+    var channelMap = {'online':'线上 / Online','offline':'线下 / Offline','exhibition':'展会 / Pameran','referral':'转介绍 / Referral','government':'政府/机构 / Pemerintah/Institusi','dealer':'经销商 / Dealer'};
+    var html =
+      '<div class="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4" onclick="if(event.target===this){this.remove();}">' +
+      '<div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">' +
+        '<div class="sticky top-0 bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">' +
+          '<h3 class="text-lg font-bold text-gray-900">询盘详情 / Detail Permintaan <span class="text-sm font-normal text-gray-400 ml-2">' + (d.inquiry_no || '') + '</span></h3>' +
+          '<button onclick="this.closest(\'.fixed\').remove()" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>' +
+        '</div>' +
+        '<div class="px-6 py-5 space-y-4">' +
+          '<div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">' +
+            row('客户名称 / Nama Pelanggan', d.company_name) +
+            row('联系人 / Kontak', d.contact_person) +
+            row('电话 / Telepon', d.phone) +
+            row('邮箱 / Email', d.email) +
+            row('询盘日期 / Tanggal', (d.created_at||'').slice(0,10)) +
+            row('状态 / Status', statusMap[d.status] || d.status || '-') +
+            row('来源渠道 / Saluran', channelMap[d.channel] || d.channel || d.source_detail || '-') +
+            row('预估金额 / Anggaran', d.budget_range || '-') +
+            row('紧急程度 / Urgensi', d.urgency || '-') +
+            row('项目地点 / Lokasi', d.project_location || '-') +
+            row('装机容量 / Kapasitas', d.estimated_capacity || '-') +
+            row('功率需求 / Daya', d.estimated_power || '-') +
+            row('负责人 / PIC', d.assigned_to || '-') +
+          '</div>' +
+          (d.product_description ? '<div class="border-t border-gray-100 pt-4"><div class="text-xs text-gray-400 mb-1">询盘产品 / Produk yang diminta</div><div class="text-sm text-gray-800 whitespace-pre-wrap">' + d.product_description + '</div></div>' : '') +
+          (d.notes ? '<div class="border-t border-gray-100 pt-4"><div class="text-xs text-gray-400 mb-1">备注说明 / Catatan</div><div class="text-sm text-gray-800 whitespace-pre-wrap">' + d.notes + '</div></div>' : '') +
+        '</div>' +
+        '<div class="sticky bottom-0 bg-gray-50 px-6 py-3 border-t border-gray-100 text-right text-xs text-gray-400">创建时间: ' + (d.created_at||'') + '</div>' +
+      '</div></div>';
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap.firstElementChild);
+  });
+}
+function row(label, val) {
+  return '<div class="col-span-' + (val && String(val).length > 30 ? '2' : '1') + '"><div class="text-xs text-gray-400">' + label + '</div><div class="text-sm text-gray-800 font-medium break-words">' + (val || '-') + '</div></div>';
 }
 
 function renderQuotationTable() {
