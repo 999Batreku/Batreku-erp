@@ -7,38 +7,33 @@ module.exports = function(db) {
 
   // ========== 辅助函数 ==========
 
-  // 获取用户角色列表
-  function getUserRoles(userId) {
-    return db.prepare(`
+  async function getUserRoles(userId) {
+    const rows = await db.all(`
       SELECT r.name FROM roles r
       JOIN user_roles ur ON ur.role_id = r.id
       WHERE ur.user_id = ?
-    `).all(userId).map(r => r.name);
+    `, [userId]);
+    return rows.map(r => r.name);
   }
 
-  // 检查用户是否拥有指定角色
   function hasRole(roles, roleName) {
     return roles.includes(roleName);
   }
 
-  // 审批级别到所需角色的映射
   const APPROVAL_LEVEL_ROLE = {
     'pending_ops':  'operations_director',
     'pending_tech': 'technical_director',
     'pending_gm':   'general_manager',
   };
 
-  // 审批级别到显示名称的映射
   const APPROVAL_LEVEL_LABEL = {
     'pending_ops':  '运营总监',
     'pending_tech': '技术总监',
     'pending_gm':   '总经理',
   };
 
-  // 审批级别推进顺序
   const APPROVAL_FLOW = ['pending_ops', 'pending_tech', 'pending_gm'];
 
-  // 解析 approval_chain JSON
   function parseChain(chainStr) {
     try {
       return JSON.parse(chainStr || '[]');
@@ -49,41 +44,42 @@ module.exports = function(db) {
 
   // ========== 基础 CRUD ==========
 
-  // GET /api/quotations — 列表（含 approval_status）
-  router.get('/', (req, res) => {
+  // GET /api/quotations
+  router.get('/', async (req, res) => {
     try {
-      const rows = db.prepare(`
+      const rows = await db.all(`
         SELECT q.*, c.name as customer_name, u.real_name as creator_name
         FROM quotations q
         LEFT JOIN customers c ON c.id = q.customer_id
         LEFT JOIN users u ON u.id = q.created_by
         ORDER BY q.id DESC
-      `).all();
-      const result = rows.map(q => {
-        const itemCount = db.prepare('SELECT COUNT(*) as cnt FROM quotation_items WHERE quotation_id = ?').get(q.id);
+      `, []);
+      const result = [];
+      for (const q of rows) {
+        const itemCount = await db.get('SELECT COUNT(*) as cnt FROM quotation_items WHERE quotation_id = ?', [q.id]);
         const chain = parseChain(q.approval_chain);
-        return { ...q, item_count: itemCount.cnt, approval_chain: chain };
-      });
+        result.push({ ...q, item_count: Number(itemCount.cnt), approval_chain: chain });
+      }
       res.json({ success: true, data: result });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
   });
 
-  // GET /api/quotations/:id — 详情（含完整 approval_chain）
-  router.get('/:id', (req, res) => {
+  // GET /api/quotations/:id
+  router.get('/:id', async (req, res) => {
     try {
-      const q = db.prepare(`
+      const q = await db.get(`
         SELECT q.*, c.name as customer_name, c.contact_person, c.phone as customer_phone, c.address as customer_address
         FROM quotations q LEFT JOIN customers c ON c.id = q.customer_id WHERE q.id = ?
-      `).get(req.params.id);
+      `, [req.params.id]);
       if (!q) return res.json({ success: false, error: '报价单不存在' });
 
-      const items = db.prepare(`
+      const items = await db.all(`
         SELECT qi.*, m.name as material_name, m.code as material_code
         FROM quotation_items qi LEFT JOIN materials m ON m.id = qi.material_id
         WHERE qi.quotation_id = ? ORDER BY qi.sort_order
-      `).all(q.id);
+      `, [q.id]);
 
       const chain = parseChain(q.approval_chain);
 
@@ -100,8 +96,8 @@ module.exports = function(db) {
     }
   });
 
-  // POST /api/quotations — 创建报价（默认 draft）
-  router.post('/', (req, res) => {
+  // POST /api/quotations
+  router.post('/', async (req, res) => {
     try {
       const { quotation_no, customer_id, title, currency, valid_days, notes, items } = req.body;
       const no = quotation_no || 'QT-' + Date.now();
@@ -111,36 +107,37 @@ module.exports = function(db) {
         total = items.reduce((s, i) => s + (i.quantity || 0) * (i.unit_price || 0), 0);
       }
 
-      const result = db.prepare(`
+      const result = await db.run(`
         INSERT INTO quotations (quotation_no, customer_id, title, total_amount, currency, valid_days, notes, created_by, approval_status, approval_chain)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', '[]')
-      `).run(no, customer_id, title, total, currency || 'IDR', valid_days || 30, notes, req.user.id);
+      `, [no, customer_id, title, total, currency || 'IDR', valid_days || 30, notes, req.user.id]);
 
       const qid = result.lastInsertRowid;
       if (items && items.length) {
-        const ins = db.prepare(`
-          INSERT INTO quotation_items (quotation_id, material_id, description, quantity, unit, unit_price, amount, sort_order)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        items.forEach((item, idx) => {
+        let idx = 0;
+        for (const item of items) {
           const amt = (item.quantity || 0) * (item.unit_price || 0);
-          ins.run(qid, item.material_id, item.description, item.quantity, item.unit, item.unit_price, amt, idx + 1);
-        });
+          await db.run(`
+            INSERT INTO quotation_items (quotation_id, material_id, description, quantity, unit, unit_price, amount, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `, [qid, item.material_id, item.description, item.quantity, item.unit, item.unit_price, amt, idx + 1]);
+          idx += 1;
+        }
       }
 
       res.json({ success: true, data: { id: qid }, message: '报价单创建成功' });
     } catch (e) {
-      if (e.message.includes('UNIQUE')) return res.json({ success: false, error: '报价单号已存在' });
+      if (/unique|duplicate key/i.test(e.message)) return res.json({ success: false, error: '报价单号已存在' });
       res.status(500).json({ success: false, error: e.message });
     }
   });
 
-  // PUT /api/quotations/:id — 更新报价（仅 draft 可编辑）
-  router.put('/:id', (req, res) => {
+  // PUT /api/quotations/:id
+  router.put('/:id', async (req, res) => {
     try {
       const { customer_id, title, currency, valid_days, notes, items } = req.body;
       const id = req.params.id;
-      const q = db.prepare('SELECT * FROM quotations WHERE id = ?').get(id);
+      const q = await db.get('SELECT * FROM quotations WHERE id = ?', [id]);
       if (!q) return res.json({ success: false, error: '报价单不存在' });
       const aStatus = q.approval_status || 'draft';
       if (aStatus !== 'draft') return res.json({ success: false, error: '只能编辑草稿状态的报价单' });
@@ -150,22 +147,23 @@ module.exports = function(db) {
         total = items.reduce((s, i) => s + (i.quantity || 0) * (i.unit_price || 0), 0);
       }
 
-      db.prepare(`
+      await db.run(`
         UPDATE quotations SET customer_id=?, title=?, total_amount=?, currency=?, valid_days=?, notes=?, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
-      `).run(customer_id, title, total, currency, valid_days, notes, id);
+      `, [customer_id, title, total, currency, valid_days, notes, id]);
 
       if (items !== undefined) {
-        db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(id);
+        await db.run('DELETE FROM quotation_items WHERE quotation_id = ?', [id]);
         if (items.length) {
-          const ins = db.prepare(`
-            INSERT INTO quotation_items (quotation_id, material_id, description, quantity, unit, unit_price, amount, sort_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          items.forEach((item, idx) => {
+          let idx = 0;
+          for (const item of items) {
             const amt = (item.quantity || 0) * (item.unit_price || 0);
-            ins.run(id, item.material_id, item.description, item.quantity, item.unit, item.unit_price, amt, idx + 1);
-          });
+            await db.run(`
+              INSERT INTO quotation_items (quotation_id, material_id, description, quantity, unit, unit_price, amount, sort_order)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `, [id, item.material_id, item.description, item.quantity, item.unit, item.unit_price, amt, idx + 1]);
+            idx += 1;
+          }
         }
       }
 
@@ -175,15 +173,15 @@ module.exports = function(db) {
     }
   });
 
-  // DELETE /api/quotations/:id — 删除报价（仅 draft 可删）
-  router.delete('/:id', (req, res) => {
+  // DELETE /api/quotations/:id
+  router.delete('/:id', async (req, res) => {
     try {
-      const q = db.prepare('SELECT approval_status FROM quotations WHERE id = ?').get(req.params.id);
+      const q = await db.get('SELECT approval_status FROM quotations WHERE id = ?', [req.params.id]);
       if (!q) return res.json({ success: false, error: '报价单不存在' });
       const aStatus = q.approval_status || 'draft';
       if (aStatus !== 'draft') return res.json({ success: false, error: '只能删除草稿状态的报价单' });
-      db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM quotations WHERE id = ?').run(req.params.id);
+      await db.run('DELETE FROM quotation_items WHERE quotation_id = ?', [req.params.id]);
+      await db.run('DELETE FROM quotations WHERE id = ?', [req.params.id]);
       res.json({ success: true, message: '已删除' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
@@ -192,11 +190,11 @@ module.exports = function(db) {
 
   // ========== 审批流接口 ==========
 
-  // POST /api/quotations/:id/submit — 提交审批 (draft → pending_ops)
-  router.post('/:id/submit', (req, res) => {
+  // POST /api/quotations/:id/submit
+  router.post('/:id/submit', async (req, res) => {
     try {
       const id = req.params.id;
-      const q = db.prepare('SELECT * FROM quotations WHERE id = ?').get(id);
+      const q = await db.get('SELECT * FROM quotations WHERE id = ?', [id]);
       if (!q) return res.json({ success: false, error: '报价单不存在' });
 
       const aStatus = q.approval_status || 'draft';
@@ -204,22 +202,21 @@ module.exports = function(db) {
         return res.json({ success: false, error: '只有草稿状态的报价单可以提交审批' });
       }
 
-      // 权限：报价创建者 或 general_manager
-      const userRoles = getUserRoles(req.user.id);
+      const userRoles = await getUserRoles(req.user.id);
       const isCreator = Number(q.created_by) === Number(req.user.id);
       const isGM = hasRole(userRoles, 'general_manager');
       if (!isCreator && !isGM) {
         return res.json({ success: false, error: '只有报价创建者或总经理可以提交审批' });
       }
 
-      db.prepare(`
+      await db.run(`
         UPDATE quotations SET approval_status = 'pending_ops', updated_at = CURRENT_TIMESTAMP WHERE id = ?
-      `).run(id);
+      `, [id]);
 
-      // 记录审批日志
-      db.prepare(
-        'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)'
-      ).run('quotation', id, 'submit', req.user.id, '提交三级审批');
+      await db.run(
+        'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+        ['quotation', id, 'submit', req.user.id, '提交三级审批']
+      );
 
       res.json({ success: true, message: '已提交审批，等待运营总监审批' });
     } catch (e) {
@@ -227,9 +224,8 @@ module.exports = function(db) {
     }
   });
 
-  // POST /api/quotations/:id/approve — 审批/驳回
-  // Body: { action: 'approve'|'reject', comment?: string, signature?: string(base64) }
-  router.post('/:id/approve', (req, res) => {
+  // POST /api/quotations/:id/approve
+  router.post('/:id/approve', async (req, res) => {
     try {
       const id = req.params.id;
       const { action, comment, signature } = req.body;
@@ -238,7 +234,7 @@ module.exports = function(db) {
         return res.json({ success: false, error: 'action 必须为 approve 或 reject' });
       }
 
-      const q = db.prepare('SELECT * FROM quotations WHERE id = ?').get(id);
+      const q = await db.get('SELECT * FROM quotations WHERE id = ?', [id]);
       if (!q) return res.json({ success: false, error: '报价单不存在' });
 
       const aStatus = q.approval_status || 'draft';
@@ -246,14 +242,11 @@ module.exports = function(db) {
         return res.json({ success: false, error: '当前状态不在审批流程中' });
       }
 
-      // 获取当前用户角色
-      const userRoles = getUserRoles(req.user.id);
+      const userRoles = await getUserRoles(req.user.id);
 
-      // 检查当前用户是否有权限审批当前级别
       const requiredRole = APPROVAL_LEVEL_ROLE[aStatus];
       const requiredLabel = APPROVAL_LEVEL_LABEL[aStatus];
 
-      // 总经理可以审批任何级别，否则需要精确匹配角色
       const canApprove = hasRole(userRoles, 'general_manager') || hasRole(userRoles, requiredRole);
       if (!canApprove) {
         return res.json({
@@ -265,8 +258,7 @@ module.exports = function(db) {
       const now = new Date().toISOString();
 
       if (action === 'reject') {
-        // 驳回
-        db.prepare(`
+        await db.run(`
           UPDATE quotations SET
             rejected_by = ?,
             rejected_at = ?,
@@ -274,11 +266,12 @@ module.exports = function(db) {
             approval_status = 'rejected',
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `).run(req.user.id, now, comment || '', id);
+        `, [req.user.id, now, comment || '', id]);
 
-        db.prepare(
-          'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)'
-        ).run('quotation', id, 'reject', req.user.id, comment || `驳回（${requiredLabel}审批）`);
+        await db.run(
+          'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+          ['quotation', id, 'reject', req.user.id, comment || `驳回（${requiredLabel}审批）`]
+        );
 
         return res.json({ success: true, message: '报价单已驳回' });
       }
@@ -300,20 +293,21 @@ module.exports = function(db) {
       if (currentIndex < APPROVAL_FLOW.length - 1) {
         nextStatus = APPROVAL_FLOW[currentIndex + 1];
       } else {
-        nextStatus = 'approved'; // pending_gm 通过后变为 approved
+        nextStatus = 'approved';
       }
 
-      db.prepare(`
+      await db.run(`
         UPDATE quotations SET
           approval_status = ?,
           approval_chain = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(nextStatus, JSON.stringify(chain), id);
+      `, [nextStatus, JSON.stringify(chain), id]);
 
-      db.prepare(
-        'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)'
-      ).run('quotation', id, 'approve', req.user.id, comment || `${requiredLabel}审批通过`);
+      await db.run(
+        'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+        ['quotation', id, 'approve', req.user.id, comment || `${requiredLabel}审批通过`]
+      );
 
       const nextLabel = nextStatus === 'approved' ? '已通过（全部审批完成）' : `等待${APPROVAL_LEVEL_LABEL[nextStatus]}审批`;
       res.json({ success: true, message: `${requiredLabel}审批通过，${nextLabel}`, approval_status: nextStatus });
@@ -322,17 +316,16 @@ module.exports = function(db) {
     }
   });
 
-  // GET /api/quotations/:id/export — 导出 PDF（仅 approved 可导出）
-  // 返回格式化 HTML，前端可通过浏览器打印为 PDF
-  router.get('/:id/export', (req, res) => {
+  // GET /api/quotations/:id/export
+  router.get('/:id/export', async (req, res) => {
     try {
-      const q = db.prepare(`
+      const q = await db.get(`
         SELECT q.*, c.name as customer_name, c.contact_person, c.phone as customer_phone, c.address as customer_address, u.real_name as creator_name
         FROM quotations q
         LEFT JOIN customers c ON c.id = q.customer_id
         LEFT JOIN users u ON u.id = q.created_by
         WHERE q.id = ?
-      `).get(req.params.id);
+      `, [req.params.id]);
 
       if (!q) return res.json({ success: false, error: '报价单不存在' });
 
@@ -341,15 +334,14 @@ module.exports = function(db) {
         return res.json({ success: false, error: '只有已通过的报价单可以导出' });
       }
 
-      const items = db.prepare(`
+      const items = await db.all(`
         SELECT qi.*, m.name as material_name, m.code as material_code
         FROM quotation_items qi LEFT JOIN materials m ON m.id = qi.material_id
         WHERE qi.quotation_id = ? ORDER BY qi.sort_order
-      `).all(q.id);
+      `, [q.id]);
 
       const chain = parseChain(q.approval_chain);
 
-      // 生成 HTML
       const itemRows = items.map(item => `
         <tr>
           <td style="border:1px solid #ddd;padding:8px;text-align:center">${item.sort_order || ''}</td>
