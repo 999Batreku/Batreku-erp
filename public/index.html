@@ -697,29 +697,37 @@ tailwind.config = {
       if (codeEl) codeEl.focus();
       return;
     }
-    if (!window.confirm(action === 'approve' ? '确认审批通过？\n客户编码：' + customerCode : '确认驳回该客户？')) return;
-
-    try {
-      var resp = await fetch(API_BASE + '/customers/' + id + '/' + action, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: 'Bearer ' + authToken } : {})
-        },
-        body: JSON.stringify({ remark: remark, customer_code: customerCode })
-      });
-      var j = await resp.json();
-      if (j.success) {
-        alert(j.message || (action === 'approve' ? '已审批通过' : '已驳回'));
-        loadCustomerApprovals();
-        _customerListCache = null;
-        var tbody = document.getElementById('customer-table-body');
-        if (tbody) loadCustomerList();
-      } else {
-        alert((j.error) || '操作失败');
+    var submitCustomerApproval = async function(signature) {
+      try {
+        var payload = { remark: remark, customer_code: customerCode };
+        if (action === 'approve') payload.signature = signature;
+        var resp = await fetch(API_BASE + '/customers/' + id + '/' + action, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: 'Bearer ' + authToken } : {})
+          },
+          body: JSON.stringify(payload)
+        });
+        var j = await resp.json();
+        if (j.success) {
+          alert(j.message || (action === 'approve' ? '已审批通过' : '已驳回'));
+          loadCustomerApprovals();
+          _customerListCache = null;
+          var tbody = document.getElementById('customer-table-body');
+          if (tbody) loadCustomerList();
+        } else {
+          alert((j.error) || '操作失败');
+        }
+      } catch (e) {
+        alert('网络错误：' + e.message);
       }
-    } catch (e) {
-      alert('网络错误：' + e.message);
+    };
+
+    if (action === 'approve') {
+      openSignaturePad(submitCustomerApproval);
+    } else if (window.confirm('确认驳回该客户？')) {
+      submitCustomerApproval();
     }
   }
 
@@ -3619,32 +3627,6 @@ function filterOutboundList() {
 </div>
 
 
-  <!-- 电子签名 / Tanda Tangan Digital（独立页面，仅在该页显示） -->
-  <div id="page-settings-signature" class="page fade-in">
-    <h3 class="text-lg font-semibold text-gray-800 mb-6">我的电子签名 <span class="text-xs text-gray-400 font-normal">/ Tanda Tangan Digital Saya</span></h3>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-    <div class="flex flex-col md:flex-row gap-6">
-      <div class="flex-1">
-        <p class="text-sm text-gray-500 mb-3">手写签名 / Tanda tangan tulisan tangan：</p>
-        <canvas id="signature-canvas" width="400" height="150" style="border:1px solid #d1d5db;border-radius:8px;cursor:crosshair;background:#fafafa;max-width:100%;touch-action:none"></canvas>
-        <div class="flex gap-2 mt-2">
-          <button onclick="clearSignatureCanvas()" class="btn-secondary text-xs py-1.5 px-3">清除 / Hapus</button>
-          <button onclick="saveSignatureFromCanvas()" class="btn-primary text-xs py-1.5 px-3">保存签名 / Simpan</button>
-        </div>
-        <p class="text-xs text-gray-400 mt-2">或者上传图片 / Atau unggah gambar：</p>
-        <input type="file" accept="image/*" id="signature-file-input" class="mt-1 text-sm" onchange="uploadSignatureFile(this)">
-      </div>
-      <div class="flex-1">
-        <p class="text-sm text-gray-500 mb-3">当前签名预览 / Pratinjau tanda tangan saat ini：</p>
-        <div id="signature-preview-box" style="border:1px dashed #d1d5db;border-radius:8px;min-height:100px;display:flex;align-items:center;justify-content:center;background:#fff">
-          <span id="signature-preview-placeholder" class="text-sm text-gray-400">暂无签名 / Belum ada tanda tangan</span>
-          <img id="signature-preview-img" src="" alt="签名" style="max-width:100%;max-height:120px;display:none">
-        </div>
-      </div>
-    </div>
-  </div>
-  </div>
-
 <!-- ===== SETTINGS ROLE ===== -->
 <div id="page-settings-role" class="page fade-in">
   <div class="flex items-center justify-between mb-6"><h3 class="text-lg font-semibold text-gray-800">角色权限配置 <span class="text-xs text-gray-400 font-normal">/ Konfigurasi Hak Akses</span></h3><button class="btn-secondary" onclick="alert('权限矩阵已同步至系统设置 / Matriks hak akses telah disinkronkan')">💾 保存配置<br><span class="text-[9px] text-gray-400">💾 Simpan Konfigurasi</span></button></div>
@@ -5508,7 +5490,6 @@ var navStructure = [
   ]},
   { id:'settings', icon:'\u2699\uFE0F', label:{zh:'\u7CFB\u7EDF\u8BBE\u7F6E',id:'Pengaturan'}, stage:{zh:'\u56DB',id:'IV'}, children:[
     { label:{zh:'\u7528\u6237\u7BA1\u7406',id:'Pengguna'}, page:'settings-user' },
-    { label:{zh:'\u6211\u7684\u7B7E\u540D',id:'Tanda Tangan Saya'}, page:'settings-signature' },
     { label:{zh:'\u89D2\u8272\u6743\u9650',id:'Hak Akses'}, page:'settings-role' },
     { label:{zh:'\u57FA\u7840\u6570\u636E',id:'Data Dasar'}, page:'settings-base' },
   ]},
@@ -5564,7 +5545,6 @@ var pageTitles = {
   'data-inventory': {zh:'\u5E93\u5B58\u770B\u677F',id:'Dasbor Stok'},
   'data-sales': {zh:'\u9500\u552E\u770B\u677F',id:'Dasbor Penjualan'},
   'settings-user': {zh:'\u7528\u6237\u7BA1\u7406',id:'Pengguna'},
-  'settings-signature': {zh:'\u6211\u7684\u7B7E\u540D',id:'Tanda Tangan Saya'},
   'settings-role': {zh:'\u89D2\u8272\u6743\u9650',id:'Hak Akses'},
   'settings-base': {zh:'\u57FA\u7840\u6570\u636E',id:'Data Dasar'},
   'inquiry-list': {zh:'\u8BE2\u76D8\u5217\u8868',id:'Daftar Permintaan Penawaran'},
@@ -5687,8 +5667,7 @@ function navigateTo(pageId) {
     if (pageId === 'finance-invoice') { loadFinanceData(); renderInvoiceTable(); }
     if (pageId === 'finance-voucher') { loadFinanceData(); renderVoucherTable(); }
     if (pageId === 'quotation-approve') { loadQuotationData().then(function(){ renderApprovalPage(); }); }
-    if (pageId === 'settings-signature') { loadUserSignaturePreview(); }
-    gmApplyAdminControls();
+        gmApplyAdminControls();
   };
 function switchPage(id) { navigateTo(id.replace('page-','')); }
 
@@ -5754,8 +5733,6 @@ function showApprovalModal(quotationId, level, action) {
   } else {
     document.getElementById('approve-section').classList.remove('hidden');
     document.getElementById('reject-section').classList.add('hidden');
-    // Load user signature
-    loadUserSignatureForApproval();
   }
 }
 
@@ -5764,37 +5741,20 @@ function closeApprovalModal() {
   _pendingApproval = { quotationId: '', level: '', action: '' };
 }
 
-async function loadUserSignatureForApproval() {
-  var preview = document.getElementById('approval-sig-preview');
-  if (!currentUser || !currentUser.userId) {
-    preview.innerHTML = '<span class="text-sm text-red-500">请先登录 / Silakan login dulu</span>';
-    return;
-  }
-  var res = await apiCall('GET', '/users/' + currentUser.userId + '/signature');
-  if (res && res.success && res.data && res.data.signature) {
-    preview.innerHTML = '<img src="' + res.data.signature + '" style="max-height:80px;max-width:200px">';
-  } else {
-    preview.innerHTML = '<span class="text-sm text-red-500">⚠️ 尚未上传签名，请先在「系统设置 → 我的签名」上传电子签名<br>Belum upload tanda tangan, silakan upload di「Pengaturan → Pengguna」</span>';
-  }
-}
 
 async function confirmApprove() {
-  if (!_pendingApproval.quotationId) { alert('缺少报价信息 / Data penawaran hilang'); return; }
-  // Get user signature
-  var sigRes = await apiCall('GET', '/users/' + currentUser.userId + '/signature');
-  var signature = (sigRes && sigRes.success && sigRes.data) ? sigRes.data.signature : '';
-  if (!signature) {
-    alert('请先在「系统设置 → 我的签名」上传电子签名后再审批\nSilakan upload tanda tangan di「Pengaturan → Pengguna」sebelum menyetujui');
-    return;
-  }
-  var res = await apiCall('POST', '/quotations/' + _pendingApproval.quotationId + '/approve', { action: 'approve', signature: signature });
-  if (res && res.success) {
-    alert('已通过审批 / Telah disetujui');
-    closeApprovalModal();
-    loadQuotationData().then(function(){ renderQuotationTable(); renderApprovalPage(); });
-  } else {
-    alert('审批失败 / Gagal: ' + (res && res.error ? res.error : '网络错误'));
-  }
+  var quotationId = _pendingApproval.quotationId;
+  if (!quotationId) { alert('缺少报价信息 / Data penawaran hilang'); return; }
+  openSignaturePad(async function(signature) {
+    var res = await apiCall('POST', '/quotations/' + quotationId + '/approve', { action: 'approve', signature: signature });
+    if (res && res.success) {
+      alert('已通过审批 / Telah disetujui');
+      closeApprovalModal();
+      loadQuotationData().then(function(){ renderQuotationTable(); renderApprovalPage(); });
+    } else {
+      alert('审批失败 / Gagal: ' + (res && res.error ? res.error : '网络错误'));
+    }
+  });
 }
 
 async function confirmReject() {
@@ -7902,70 +7862,73 @@ document.addEventListener('DOMContentLoaded', async function() {
   // Show login page (no auto-login)
 });
 
-// ========== 电子签名功能 ==========
-var _sigCanvas, _sigCtx, _sigDrawing = false;
-function initSignatureCanvas() {
-  _sigCanvas = document.getElementById('signature-canvas');
-  if (!_sigCanvas) return;
+// ========== 可复用电子签名板（仅在「报价审批」「审批中心」审批通过时调用） ==========
+var _sigCanvas, _sigCtx, _sigDrawing = false, _sigInited = false, _sigCallback = null;
+
+function openSignaturePad(callback) {
+  _sigCallback = typeof callback === 'function' ? callback : null;
+  var modal = document.getElementById('signature-pad-modal');
+  modal.classList.remove('hidden');
+  if (!_sigInited) initSignaturePad();
+  resetSignaturePad();
+}
+function closeSignaturePad() {
+  document.getElementById('signature-pad-modal').classList.add('hidden');
+  _sigCallback = null;
+}
+function initSignaturePad() {
+  _sigCanvas = document.getElementById('signature-pad-canvas');
   _sigCtx = _sigCanvas.getContext('2d');
   _sigCtx.strokeStyle = '#1a56db';
-  _sigCtx.lineWidth = 2;
+  _sigCtx.lineWidth = 2.2;
   _sigCtx.lineCap = 'round';
   _sigCtx.lineJoin = 'round';
-  // Mouse events
-  _sigCanvas.addEventListener('mousedown', sigStartDraw);
-  _sigCanvas.addEventListener('mousemove', sigDraw);
-  _sigCanvas.addEventListener('mouseup', sigStopDraw);
-  _sigCanvas.addEventListener('mouseout', sigStopDraw);
-  // Touch events
-  _sigCanvas.addEventListener('touchstart', function(e) { e.preventDefault(); var t = e.touches[0]; sigStartDraw({offsetX: t.clientX - _sigCanvas.getBoundingClientRect().left, offsetY: t.clientY - _sigCanvas.getBoundingClientRect().top}); });
-  _sigCanvas.addEventListener('touchmove', function(e) { e.preventDefault(); var t = e.touches[0]; sigDraw({offsetX: t.clientX - _sigCanvas.getBoundingClientRect().left, offsetY: t.clientY - _sigCanvas.getBoundingClientRect().top}); });
-  _sigCanvas.addEventListener('touchend', sigStopDraw);
+  _sigCanvas.addEventListener('mousedown', sigPadStart);
+  _sigCanvas.addEventListener('mousemove', sigPadDraw);
+  window.addEventListener('mouseup', sigPadStop);
+  _sigCanvas.addEventListener('mouseout', sigPadStop);
+  _sigCanvas.addEventListener('touchstart', function(e){ e.preventDefault(); var r=_sigCanvas.getBoundingClientRect(); var t=e.touches[0]; sigPadStart({offsetX:t.clientX-r.left, offsetY:t.clientY-r.top}); }, {passive:false});
+  _sigCanvas.addEventListener('touchmove', function(e){ e.preventDefault(); var r=_sigCanvas.getBoundingClientRect(); var t=e.touches[0]; sigPadDraw({offsetX:t.clientX-r.left, offsetY:t.clientY-r.top}); }, {passive:false});
+  _sigCanvas.addEventListener('touchend', function(e){ e.preventDefault(); sigPadStop(); });
+  document.getElementById('signature-pad-file').addEventListener('change', sigPadUploadFile);
+  _sigInited = true;
 }
-function sigStartDraw(e) { _sigDrawing = true; _sigCtx.beginPath(); _sigCtx.moveTo(e.offsetX, e.offsetY); }
-function sigDraw(e) { if (!_sigDrawing) return; _sigCtx.lineTo(e.offsetX, e.offsetY); _sigCtx.stroke(); }
-function sigStopDraw() { _sigDrawing = false; }
-function clearSignatureCanvas() { if (_sigCtx && _sigCanvas) { _sigCtx.clearRect(0, 0, _sigCanvas.width, _sigCanvas.height); } }
-async function saveSignatureFromCanvas() {
-  if (!_sigCanvas) return;
-  var dataUrl = _sigCanvas.toDataURL('image/png');
-  // Check if canvas has content
-  var blank = document.createElement('canvas');
-  blank.width = _sigCanvas.width; blank.height = _sigCanvas.height;
-  if (dataUrl === blank.toDataURL('image/png')) { alert('请先签名 / Silakan tanda tangan terlebih dahulu'); return; }
-  await uploadSignature(dataUrl);
+function sigPadPos(e){ return { x: e.offsetX, y: e.offsetY }; }
+function sigPadStart(e){ _sigDrawing = true; var p=sigPadPos(e); _sigCtx.beginPath(); _sigCtx.moveTo(p.x,p.y); }
+function sigPadDraw(e){ if(!_sigDrawing) return; var p=sigPadPos(e); _sigCtx.lineTo(p.x,p.y); _sigCtx.stroke(); }
+function sigPadStop(){ _sigDrawing = false; }
+function resetSignaturePad(){
+  _sigCtx.clearRect(0,0,_sigCanvas.width,_sigCanvas.height);
+  var inp=document.getElementById('signature-pad-file'); if(inp) inp.value='';
 }
-async function uploadSignatureFile(input) {
-  if (!input.files || !input.files[0]) return;
-  var reader = new FileReader();
-  reader.onload = async function(e) { await uploadSignature(e.target.result); };
+function sigPadHasInk(){
+  var blank=document.createElement('canvas'); blank.width=_sigCanvas.width; blank.height=_sigCanvas.height;
+  return _sigCanvas.toDataURL('image/png') !== blank.toDataURL('image/png');
+}
+function sigPadUploadFile(input){
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      _sigCtx.clearRect(0,0,_sigCanvas.width,_sigCanvas.height);
+      // 等比绘制进画布，居中留边
+      var pad=16, maxW=_sigCanvas.width-pad*2, maxH=_sigCanvas.height-pad*2;
+      var scale=Math.min(maxW/img.width, maxH/img.height);
+      var w=img.width*scale, h=img.height*scale;
+      _sigCtx.drawImage(img, (_sigCanvas.width-w)/2, (_sigCanvas.height-h)/2, w, h);
+    };
+    img.src=e.target.result;
+  };
   reader.readAsDataURL(input.files[0]);
 }
-async function uploadSignature(base64Data) {
-  if (!currentUser || !currentUser.userId) { alert('请先登录 / Silakan login'); return; }
-  var res = await apiCall('PUT', '/users/' + currentUser.userId + '/signature', { signature: base64Data });
-  if (res && res.success) {
-    alert('签名已保存 / Tanda tangan telah disimpan');
-    loadUserSignaturePreview();
-  } else {
-    alert('保存失败 / Gagal: ' + (res && res.error ? res.error : '网络错误'));
-  }
+function confirmSignaturePad(){
+  if(!sigPadHasInk()){ alert('请先手写签名或上传签名图片 / Silakan tanda tangan terlebih dahulu'); return; }
+  var dataUrl=_sigCanvas.toDataURL('image/png');
+  var cb=_sigCallback;
+  closeSignaturePad();
+  if(cb) cb(dataUrl);
 }
-async function loadUserSignaturePreview() {
-  if (!currentUser || !currentUser.userId) return;
-  var res = await apiCall('GET', '/users/' + currentUser.userId + '/signature');
-  var img = document.getElementById('signature-preview-img');
-  var placeholder = document.getElementById('signature-preview-placeholder');
-  if (res && res.success && res.data && res.data.signature) {
-    if (img) { img.src = res.data.signature; img.style.display = 'block'; }
-    if (placeholder) placeholder.style.display = 'none';
-  } else {
-    if (img) img.style.display = 'none';
-    if (placeholder) placeholder.style.display = '';
-  }
-}
-// Init canvas on page load
-document.addEventListener('DOMContentLoaded', function() { initSignatureCanvas(); });
 
 </script>
 
@@ -7977,17 +7940,35 @@ document.addEventListener('DOMContentLoaded', function() { initSignatureCanvas()
     <div id="approval-modal-history" class="mb-4"></div>
     <div id="approval-modal-actions">
       <div id="approve-section" class="mb-4">
-        <p class="text-sm font-medium text-gray-700 mb-2">您的签名 / Tanda tangan Anda：</p>
-        <div id="approval-sig-preview" class="mb-2" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;min-height:60px;display:flex;align-items:center;justify-content:center;background:#fafafa">
-          <span class="text-sm text-gray-400">加载中...</span>
-        </div>
-        <button class="btn-success w-full mt-2" onclick="confirmApprove()">✅ 确认通过 / Konfirmasi Setuju</button>
+        <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700 mb-2">📌 点击「确认通过」后将打开签名板，请手写签名或上传签名图片，签名后审批方可生效。<br><span class="text-blue-500">Setelah klik setuju, papan tanda tangan akan terbuka.</span></div>
+        <button class="btn-success w-full mt-2" onclick="confirmApprove()">✅ 确认通过并签名 / Setuju & Tanda Tangan</button>
       </div>
       <div id="reject-section" class="hidden">
         <label class="block text-sm font-medium text-gray-700 mb-1">驳回原因 / Alasan penolakan：</label>
         <textarea id="reject-reason" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="请输入驳回原因 / Masukkan alasan penolakan..."></textarea>
         <button class="btn-danger w-full mt-2" onclick="confirmReject()">❌ 确认驳回 / Konfirmasi Tolak</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SIGNATURE PAD MODAL（可复用） ===== -->
+<div id="signature-pad-modal" class="fixed inset-0 bg-black/40 z-[60] hidden flex items-center justify-center" onclick="if(event.target===this)closeSignaturePad()">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h4 class="text-lg font-semibold text-gray-800">电子签名 <span class="text-xs text-gray-400 font-normal">/ Tanda Tangan Digital</span></h4>
+      <button class="text-gray-400 hover:text-gray-600 text-xl" onclick="closeSignaturePad()">✕</button>
+    </div>
+    <canvas id="signature-pad-canvas" width="460" height="180" style="border:1px solid #d1d5db;border-radius:8px;cursor:crosshair;background:#fff;width:100%;touch-action:none"></canvas>
+    <div class="flex items-center gap-3 mt-2 flex-wrap">
+      <button class="btn-secondary text-xs py-1.5 px-3" onclick="resetSignaturePad()">🧹 清除 / Hapus</button>
+      <label class="text-xs text-gray-600">或上传签名图片 / Atau unggah gambar：
+        <input type="file" accept="image/*" id="signature-pad-file" class="mt-1 text-xs">
+      </label>
+    </div>
+    <div class="flex gap-3 mt-5">
+      <button class="btn-primary flex-1" onclick="confirmSignaturePad()">✍️ 确认签名 / Konfirmasi Tanda Tangan</button>
+      <button class="btn-secondary flex-1" onclick="closeSignaturePad()">取消 / Batal</button>
     </div>
   </div>
 </div>
@@ -8000,35 +7981,5 @@ document.addEventListener('DOMContentLoaded', function() { initSignatureCanvas()
   </div>
 </div>
 
-<!-- ===== APPROVAL MODAL ===== -->
-<div id="approval-modal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center" onclick="if(event.target===this)closeApprovalModal()">
-  <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
-    <div class="flex items-center justify-between mb-4"><h4 class="text-lg font-semibold text-gray-800">审批操作 / Operasi Persetujuan</h4><button class="text-gray-400 hover:text-gray-600 text-xl" onclick="closeApprovalModal()">✕</button></div>
-    <div id="approval-modal-summary" class="mb-4 p-3 bg-gray-50 rounded-lg text-sm"></div>
-    <div id="approval-modal-history" class="mb-4"></div>
-    <div id="approval-modal-actions">
-      <div id="approve-section" class="mb-4">
-        <p class="text-sm font-medium text-gray-700 mb-2">您的签名 / Tanda tangan Anda：</p>
-        <div id="approval-sig-preview" class="mb-2" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;min-height:60px;display:flex;align-items:center;justify-content:center;background:#fafafa">
-          <span class="text-sm text-gray-400">加载中...</span>
-        </div>
-        <button class="btn-success w-full mt-2" onclick="confirmApprove()">✅ 确认通过 / Konfirmasi Setuju</button>
-      </div>
-      <div id="reject-section" class="hidden">
-        <label class="block text-sm font-medium text-gray-700 mb-1">驳回原因 / Alasan penolakan：</label>
-        <textarea id="reject-reason" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="请输入驳回原因 / Masukkan alasan penolakan..."></textarea>
-        <button class="btn-danger w-full mt-2" onclick="confirmReject()">❌ 确认驳回 / Konfirmasi Tolak</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== QUOTATION DETAIL MODAL ===== -->
-<div id="quotation-detail-modal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center" onclick="if(event.target===this)closeQuotationDetail()">
-  <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
-    <div class="flex items-center justify-between mb-4"><h4 class="text-lg font-semibold text-gray-800">报价详情 / Detail Penawaran</h4><button class="text-gray-400 hover:text-gray-600 text-xl" onclick="closeQuotationDetail()">✕</button></div>
-    <div id="quotation-detail-content"></div>
-  </div>
-</div>
 </body>
 </html>
