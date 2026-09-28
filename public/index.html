@@ -399,11 +399,11 @@ tailwind.config = {
               <input type="number" step="any" placeholder="经度" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
             </div>
             <div class="col-span-3 flex items-center">
-              <button type="button" onclick="removeLocation(this)" class="text-red-400 hover:text-red-600 text-sm ml-2">✕ 删除</button>
+              <button type="button" onclick="removeLocation(this)" class="text-red-400 hover:text-red-600 text-sm ml-2">✕ 删除<br><span class="text-[9px] text-gray-400">Hapus</span></button>
             </div>
           </div>
         </div>
-        <button type="button" onclick="addProjectLocation()" class="text-sm text-brand-600 hover:underline mt-1">+ 添加项目地点</button>
+        <button type="button" onclick="addProjectLocation()" class="text-sm text-brand-600 hover:underline mt-1">+ 添加项目地点<br><span class="text-[9px] text-gray-400">Tambah Lokasi Proyek</span></button>
       </div>
     </div>
   </div>
@@ -451,15 +451,15 @@ tailwind.config = {
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">编码审批状态 <span class="text-xs text-gray-400">/ Status Persetujuan Kode</span></label>
-        <div class="mt-1"><span class="badge badge-yellow">待提交</span></div>
+        <div class="mt-1"><span class="badge badge-yellow">待提交<br><span class="text-[9px]">Menunggu Dikirim</span></span></div>
       </div>
     </div>
   </div>
 
   <!-- 底部按钮区 -->
   <div class="flex gap-3">
-    <button class="btn-primary" onclick="submitCustomer('pending')">提交审批</button>
-    <button class="btn-secondary" onclick="submitCustomer('draft')">保存草稿</button>
+    <button class="btn-primary" onclick="submitCustomer('pending')">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button>
+    <button class="btn-secondary" onclick="submitCustomer('draft')">保存草稿<br><span class="text-[9px] text-gray-400">Simpan Draf</span></button>
     <button class="text-gray-500 hover:text-gray-700 px-4 py-2 text-sm" onclick="navigateTo('customer-list')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button>
   </div>
 
@@ -468,7 +468,7 @@ tailwind.config = {
     var container = document.getElementById('project-locations');
     var item = document.createElement('div');
     item.className = 'project-location-item grid grid-cols-12 gap-2 items-start mb-2';
-    item.innerHTML = '<div class="col-span-5"><input type="text" placeholder="地点名称/描述" class="loc-name w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div><div class="col-span-2"><input type="number" step="any" placeholder="纬度" class="loc-lat w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div><div class="col-span-2"><input type="number" step="any" placeholder="经度" class="loc-lng w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div><div class="col-span-3 flex items-center"><button type="button" onclick="removeLocation(this)" class="text-red-400 hover:text-red-600 text-sm ml-2">✕ 删除</button></div>';
+    item.innerHTML = '<div class="col-span-5"><input type="text" placeholder="地点名称/描述" class="loc-name w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div><div class="col-span-2"><input type="number" step="any" placeholder="纬度" class="loc-lat w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div><div class="col-span-2"><input type="number" step="any" placeholder="经度" class="loc-lng w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div><div class="col-span-3 flex items-center"><button type="button" onclick="removeLocation(this)" class="text-red-400 hover:text-red-600 text-sm ml-2">✕ 删除<br><span class="text-[9px] text-gray-400">Hapus</span></button></div>';
     container.appendChild(item);
   }
   function removeLocation(btn) {
@@ -1853,7 +1853,7 @@ function filterOutboundList() {
     <button onclick="addQuotationProduct()" class="text-sm text-brand-600 hover:underline mb-4 cursor-pointer">+ 添加产品</button>
     <div class="border-t border-gray-200 pt-4 flex justify-end"><div class="w-64 space-y-2"><div class="flex justify-between text-sm"><span class="text-gray-500">小计</span><span id="qt-subtotal">IDR 535,000,000</span></div><div class="flex justify-between text-sm"><span class="text-gray-500">PPN (11%)</span><span id="qt-ppn">IDR 58,850,000</span></div><div class="flex justify-between text-base font-bold border-t pt-2"><span>合计</span><span id="qt-total" class="text-brand-600">IDR 593,850,000</span></div></div></div>
     <div class="mt-6"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea id="quotationNotes" rows="3" placeholder="报价备注信息..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="mt-6 flex gap-3"><button class="btn-primary" onclick="submitQuotation('pending')">提交审批</button><button class="btn-secondary" onclick="submitQuotation('draft')">保存草稿</button><button class="btn-secondary" onclick="exportQuotationPDF()">📄 导出PDF</button></div>
+    <div class="mt-6 flex gap-3"><button class="btn-primary" onclick="submitQuotation('pending')">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="submitQuotation('draft')">保存草稿<br><span class="text-[9px] text-gray-400">Simpan Draf</span></button><button class="btn-secondary" onclick="exportQuotationPDF()">📄 导出PDF</button></div>
   </div>
 </div>
 
@@ -1929,7 +1929,7 @@ function filterOutboundList() {
       <tr><td class="px-4 py-2"><input type="text" placeholder="产品名" class="w-full px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="text" placeholder="规格" class="w-full px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="number" placeholder="数量 / Jumlah" class="w-20 px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="text" placeholder="单价" class="w-28 px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2 text-sm text-gray-500">—</td></tr>
     </tbody></table></div>
     <div><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea rows="3" placeholder="订单备注信息（如特殊要求、交付条件等）" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="mt-6 flex gap-3"><button class="btn-primary" onclick="submitOrder('contract_pending')">创建订单</button><button class="btn-secondary" onclick="navigateTo('order-list')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="mt-6 flex gap-3"><button class="btn-primary" onclick="submitOrder('contract_pending')">创建订单<br><span class="text-[9px] text-gray-400">Buat Pesanan</span></button><button class="btn-secondary" onclick="navigateTo('order-list')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -2247,7 +2247,7 @@ function filterOutboundList() {
       <div class="text-sm font-medium text-gray-700">合计：<span id="purchase-total" class="text-brand-600">IDR 88,000,000</span></div>
     </div>
     <div class="mt-4"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea rows="3" placeholder="采购申请备注..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="mt-6 flex gap-3"><button class="btn-primary" onclick="submitPurchaseRequest()">提交审批</button><button class="btn-secondary" onclick="navigateTo('purchase-request')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="mt-6 flex gap-3"><button class="btn-primary" onclick="submitPurchaseRequest()">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="navigateTo('purchase-request')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -2365,7 +2365,7 @@ function filterOutboundList() {
       </div>
     </div>
     <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea rows="3" placeholder="入库备注..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="flex gap-3"><button class="btn-primary" onclick="submitInboundRequest('joyfull')">提交审批</button><button class="btn-secondary" onclick="navigateTo('joyfull-inbound')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="flex gap-3"><button class="btn-primary" onclick="submitInboundRequest('joyfull')">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="navigateTo('joyfull-inbound')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -2413,7 +2413,7 @@ function filterOutboundList() {
       </div>
     </div>
     <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea rows="3" placeholder="出库备注..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="flex gap-3"><button class="btn-primary" onclick="submitOutboundRequest('joyfull')">提交审批</button><button class="btn-secondary" onclick="navigateTo('joyfull-outbound')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="flex gap-3"><button class="btn-primary" onclick="submitOutboundRequest('joyfull')">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="navigateTo('joyfull-outbound')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -2526,7 +2526,7 @@ function filterOutboundList() {
       </div>
     </div>
     <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea rows="3" placeholder="入库备注..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="flex gap-3"><button class="btn-primary" onclick="submitInboundRequest('pabrik')">提交审批</button><button class="btn-secondary" onclick="navigateTo('pabrik-inbound')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="flex gap-3"><button class="btn-primary" onclick="submitInboundRequest('pabrik')">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="navigateTo('pabrik-inbound')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -2574,7 +2574,7 @@ function filterOutboundList() {
       </div>
     </div>
     <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea rows="3" placeholder="出库备注..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="flex gap-3"><button class="btn-primary" onclick="submitOutboundRequest('pabrik')">提交审批</button><button class="btn-secondary" onclick="navigateTo('pabrik-outbound')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="flex gap-3"><button class="btn-primary" onclick="submitOutboundRequest('pabrik')">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="navigateTo('pabrik-outbound')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -2663,7 +2663,7 @@ function filterOutboundList() {
     </div>
 
     <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea id="logistics-notes" rows="3" placeholder="发货备注（特殊要求、包装要求等）..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="flex gap-3"><button class="btn-primary" onclick="submitLogisticsRequest()">提交审批</button><button class="btn-secondary" onclick="navigateTo('logistics-shipment')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="flex gap-3"><button class="btn-primary" onclick="submitLogisticsRequest()">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="navigateTo('logistics-shipment')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -3038,7 +3038,7 @@ function filterOutboundList() {
     </div>
 
     <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea id="plan-notes" rows="3" placeholder="生产计划备注（工艺要求、特殊说明等）..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="flex gap-3"><button class="btn-primary" onclick="submitProductionPlan()">提交审批</button><button class="btn-secondary" onclick="navigateTo('production-plan')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="flex gap-3"><button class="btn-primary" onclick="submitProductionPlan()">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="navigateTo('production-plan')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -3093,7 +3093,7 @@ function filterOutboundList() {
     </div>
 
     <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea id="material-notes" rows="3" placeholder="领料备注（用途说明、紧急程度等）..." class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
-    <div class="flex gap-3"><button class="btn-primary" onclick="submitMaterialRequest()">提交审批</button><button class="btn-secondary" onclick="navigateTo('production-material')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
+    <div class="flex gap-3"><button class="btn-primary" onclick="submitMaterialRequest()">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="navigateTo('production-material')">取消<br><span class="text-[9px] text-gray-400">Batal</span></button></div>
   </div>
 </div>
 
@@ -4888,7 +4888,7 @@ function refreshCurrentPagePermissions() {
       if (isManager()) {
         btnArea.innerHTML = '<div class="flex-1 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">🔒 审批模式 — 管理者不可修改制单内容，仅可审批</div><button class="btn-success" onclick="alert(\'已通过审批\')">✓ 通过</button><button class="btn-danger" onclick="alert(\'已驳回\')">✗ 驳回</button>';
       } else {
-        btnArea.innerHTML = '<button class="btn-primary" onclick="submitQuotation(\'pending\')">提交审批</button><button class="btn-secondary" onclick="submitQuotation(\'draft\')">保存草稿</button><button class="btn-secondary" onclick="exportQuotationPDF()">📄 导出PDF</button>';
+        btnArea.innerHTML = '<button class="btn-primary" onclick="submitQuotation(\'pending\')">提交审批<br><span class="text-[9px] text-gray-400">Kirim Persetujuan</span></button><button class="btn-secondary" onclick="submitQuotation(\'draft\')">保存草稿<br><span class="text-[9px] text-gray-400">Simpan Draf</span></button><button class="btn-secondary" onclick="exportQuotationPDF()">📄 导出PDF</button>';
       }
     }
   }
