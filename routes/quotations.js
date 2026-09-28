@@ -277,6 +277,9 @@ module.exports = function(db) {
       }
 
       // 通过 — 推进到下一级
+      if (!signature || String(signature).indexOf('data:image') !== 0) {
+        return res.json({ success: false, error: '审批通过必须签署电子签名' });
+      }
       const chain = parseChain(q.approval_chain);
       chain.push({
         level: aStatus.replace('pending_', ''),
