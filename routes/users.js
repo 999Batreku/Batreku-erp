@@ -179,5 +179,36 @@ module.exports = function(db) {
     }
   });
 
+  // PUT /api/users/:id/signature — 上传/更新签名图片（base64）
+  router.put('/:id/signature', (req, res) => {
+    try {
+      const id = req.params.id;
+      const { signature } = req.body;
+      if (!signature) {
+        return res.json({ success: false, error: '签名图片不能为空' });
+      }
+      // 确保 signature_image 列存在
+      try {
+        db.prepare('ALTER TABLE users ADD COLUMN signature_image TEXT').run();
+      } catch (e) { /* 已存在 */ }
+      db.prepare('UPDATE users SET signature_image = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(signature, id);
+      res.json({ success: true, message: '签名更新成功' });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // GET /api/users/:id/signature — 获取签名图片
+  router.get('/:id/signature', (req, res) => {
+    try {
+      const id = req.params.id;
+      const user = db.prepare('SELECT signature_image FROM users WHERE id = ?').get(id);
+      if (!user) return res.json({ success: false, error: '用户不存在' });
+      res.json({ success: true, data: { signature: user.signature_image || null } });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   return router;
 };
