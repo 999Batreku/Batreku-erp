@@ -44,6 +44,8 @@ tailwind.config = {
   .badge-yellow { background: #fef3c7; color: #92400e; }
   .badge-red { background: #fee2e2; color: #991b1b; }
   .badge-gray { background: #f3f4f6; color: #374151; }
+  .badge-orange { background: #ffedd5; color: #9a3412; }
+  .badge-purple { background: #ede9fe; color: #5b21b6; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,0.1); }
   .mobile-overlay { display: none; }
   .mobile-overlay.active { display: block; }
@@ -1200,6 +1202,28 @@ function filterInquiryList() {
   if (pag) pag.textContent = '显示 ' + filtered.length + ' 条（共 ' + data.length + ' 条）';
 }
 
+// ========== 审批状态映射 ==========
+var approvalStatusMap = {
+  'draft': {zh:'草稿', id:'Draf', cls:'badge-gray'},
+  'pending_ops': {zh:'待运营总监审批', id:'Menunggu Dir. Operasi', cls:'badge-yellow'},
+  'pending_tech': {zh:'待技术总监审批', id:'Menunggu Dir. Teknik', cls:'badge-orange'},
+  'pending_gm': {zh:'待总经理审批', id:'Menunggu Dir. Umum', cls:'badge-orange'},
+  'approved': {zh:'已通过', id:'Disetujui', cls:'badge-green'},
+  'rejected': {zh:'已驳回', id:'Ditolak', cls:'badge-red'}
+};
+function getApprovalStatusBadge(statusKey) {
+  var s = approvalStatusMap[statusKey] || approvalStatusMap['draft'];
+  return '<span class="badge ' + s.cls + '">' + s.zh + '<br><span class="text-[9px]">' + s.id + '</span></span>';
+}
+function mapLegacyStatus(statusStr) {
+  if (!statusStr) return 'draft';
+  if (statusStr === '草稿' || statusStr === 'draft') return 'draft';
+  if (statusStr === '待审批' || statusStr === 'pending') return 'pending_ops';
+  if (statusStr === '已审批' || statusStr === '已批准' || statusStr === 'approved') return 'approved';
+  if (statusStr === '已驳回' || statusStr === 'rejected') return 'rejected';
+  return statusStr;
+}
+
 // ========== 报价列表筛选 ==========
 function filterQuotationList() {
   var search = (document.getElementById('quotation-filter-search').value || '').toLowerCase();
@@ -1210,7 +1234,10 @@ function filterQuotationList() {
       var t = (item.id || '') + (item.customer || '') + (item.type || '') + (item.submitter || '');
       if (t.toLowerCase().indexOf(search) === -1) return false;
     }
-    if (status && (item.status || '').indexOf(status) === -1) return false;
+    if (status) {
+      var sk = item.statusKey || mapLegacyStatus(item.status);
+      if (sk !== status) return false;
+    }
     return true;
   });
   var tbody = document.querySelector('#page-quotation-list tbody');
@@ -1221,15 +1248,17 @@ function filterQuotationList() {
   }
   var html = '';
   filtered.forEach(function(q) {
-    var statusClass = q.status.indexOf('草稿') > -1 ? 'badge-gray' : (q.status.indexOf('审批') > -1 ? 'badge-orange' : 'badge-green');
-    html += '<tr class="hover:bg-gray-50" data-submitter="' + (q.submitter||'') + '" data-department="' + (q.department||'') + '">' +
+    var sk = q.statusKey || mapLegacyStatus(q.status);
+    var badge = getApprovalStatusBadge(sk);
+    var exportBtn = sk === 'approved' ? '<button class="text-green-600 text-xs hover:underline ml-2" onclick="event.stopPropagation();exportQuotationPDF(\''+q.rawId+'\')">📄 导出<br><span class="text-[9px]">Ekspor</span></button>' : '';
+    html += '<tr class="hover:bg-gray-50 cursor-pointer" data-submitter="' + (q.submitter||'') + '" data-department="' + (q.department||'') + '" onclick="showQuotationDetail(\'' + (q.rawId||'') + '\')">' +
       '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + q.id + '</td>' +
       '<td class="px-5 py-3 text-sm">' + q.customer + '</td>' +
       '<td class="px-5 py-3 text-sm"><span class="badge ' + ((q.type||'').indexOf('EPC') > -1 ? 'badge-purple' : 'badge-blue') + '">' + q.type + '</span></td>' +
       '<td class="px-5 py-3 text-sm font-semibold">' + q.amount + '</td>' +
       '<td class="px-5 py-3 text-sm text-gray-500">' + q.date + '</td>' +
-      '<td class="px-5 py-3"><span class="badge ' + statusClass + '">' + q.status + '</span></td>' +
-      '<td class="px-5 py-3 text-sm"><button class="text-brand-600 text-sm hover:underline">查看<br><span class="text-[9px] text-gray-400">Lihat</span></button></td></tr>';
+      '<td class="px-5 py-3">' + badge + '</td>' +
+      '<td class="px-5 py-3 text-sm"><button class="text-brand-600 text-sm hover:underline" onclick="event.stopPropagation();showQuotationDetail(\''+ (q.rawId||'') +'\')">查看<br><span class="text-[9px] text-gray-400">Lihat</span></button>' + exportBtn + '</td></tr>';
   });
   tbody.innerHTML = html;
 }
@@ -1953,7 +1982,7 @@ function filterOutboundList() {
 <div id="page-quotation-list" class="page fade-in">
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6"><h3 class="text-lg font-semibold text-gray-800 mb-3 sm:mb-0">报价列表 <span class="text-xs text-gray-400 font-normal">/ Daftar Penawaran</span></h3><button class="btn-primary" onclick="navigateTo('quotation-new')">+ 新建报价<br><span class="text-[9px] text-gray-400">+ Tambah Penawaran</span></button></div>
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-    <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3"><input type="text" id="quotation-filter-search" placeholder="搜索报价编号/客户名称... / Cari no. penawaran/nama pelanggan..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterQuotationList()"><select id="quotation-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterQuotationList()"><option value="">全部状态 / Semua Status</option><option value="草稿">草稿 / Draf</option><option value="待审批">待审批 / Menunggu Persetujuan</option><option value="已审批">已审批 / Sudah Disetujui</option><option value="已驳回">已驳回 / Ditolak</option></select></div>
+    <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3"><input type="text" id="quotation-filter-search" placeholder="搜索报价编号/客户名称... / Cari no. penawaran/nama pelanggan..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterQuotationList()"><select id="quotation-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterQuotationList()"><option value="">全部状态 / Semua Status</option><option value="draft">草稿 / Draf</option><option value="pending_ops">待运营总监审批 / Menunggu Dir. Operasi</option><option value="pending_tech">待技术总监审批 / Menunggu Dir. Teknik</option><option value="pending_gm">待总经理审批 / Menunggu Dir. Umum</option><option value="approved">已通过 / Disetujui</option><option value="rejected">已驳回 / Ditolak</option></select></div>
 <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">报价编号<br><span class="text-[10px] text-gray-400">No. Penawaran</span></th><th class="px-5 py-3">客户<br><span class="text-[10px] text-gray-400">Pelanggan</span></th><th class="px-5 py-3">类型<br><span class="text-[10px] text-gray-400">Jenis</span></th><th class="px-5 py-3">金额<br><span class="text-[10px] text-gray-400">Jumlah</span></th><th class="px-5 py-3">日期<br><span class="text-[10px] text-gray-400">Tanggal</span></th><th class="px-5 py-3">状态<br><span class="text-[10px] text-gray-400">Status</span></th><th class="px-5 py-3">操作<br><span class="text-[10px] text-gray-400">Aksi</span></th></tr></thead><tbody class="divide-y divide-gray-50">
     <tr class="hover:bg-gray-50" data-submitter="Siti Rahayu" data-department="销售部"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">QT-2025-018</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Surya Energi</td><td class="px-5 py-3.5 text-sm text-gray-500">储能系统</td><td class="px-5 py-3.5 text-sm font-medium">IDR 593,850,000</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-14</td><td class="px-5 py-3.5"><span class="badge badge-yellow">待审批<br><span class="text-[9px]">Menunggu</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">查看<br><span class="text-[9px] text-gray-400">Lihat</span></button></td></tr>
     <tr class="hover:bg-gray-50" data-submitter="Budi Santoso" data-department="销售部"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">QT-2025-017</td><td class="px-5 py-3.5 text-sm text-gray-700">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm text-gray-500">定制类储能产品</td><td class="px-5 py-3.5 text-sm font-medium">IDR 275,000,000</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-12</td><td class="px-5 py-3.5"><span class="badge badge-green">已批准<br><span class="text-[9px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">查看<br><span class="text-[9px] text-gray-400">Lihat</span></button></td></tr>
@@ -1965,21 +1994,8 @@ function filterOutboundList() {
 <!-- ===== QUOTATION APPROVE ===== -->
 <div id="page-quotation-approve" class="page fade-in">
   <h3 class="text-lg font-semibold text-gray-800 mb-6">报价审批 <span class="text-xs text-gray-400 font-normal">/ Persetujuan Penawaran</span></h3>
-  <div class="space-y-4">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-      <div class="flex items-center justify-between mb-3"><span class="badge badge-yellow">待审批<br><span class="text-[9px]">Menunggu</span></span><span class="text-xs text-gray-400">2025-06-14</span></div>
-      <h4 class="font-medium text-gray-900">QT-2025-018 — PT Surya Energi</h4>
-      <p class="text-sm text-gray-600 mt-1">储能系统报价 · 金额：IDR 593,850,000</p>
-      <p class="text-xs text-gray-400 mt-1">申请人 / Pemohon：Siti Rahayu</p>
-      <div class="mt-4 flex gap-2"><button class="btn-success" onclick="handleApproval(this,'approve')">通过 <span class="text-[9px]">/ Setuju</span></button><button class="btn-danger" onclick="handleApproval(this,'reject')">驳回 <span class="text-[9px]">/ Tolak</span></button></div>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-      <div class="flex items-center justify-between mb-3"><span class="badge badge-yellow">待审批<br><span class="text-[9px]">Menunggu</span></span><span class="text-xs text-gray-400">2025-06-10</span></div>
-      <h4 class="font-medium text-gray-900">QT-2025-016 — PT Mega Solar Indonesia</h4>
-      <p class="text-sm text-gray-600 mt-1">EPC工程报价 · 金额：IDR 1,320,000,000</p>
-      <p class="text-xs text-gray-400 mt-1">申请人 / Pemohon：Budi Santoso</p>
-      <div class="mt-4 flex gap-2"><button class="btn-success" onclick="handleApproval(this,'approve')">通过 <span class="text-[9px]">/ Setuju</span></button><button class="btn-danger" onclick="handleApproval(this,'reject')">驳回 <span class="text-[9px]">/ Tolak</span></button></div>
-    </div>
+  <div id="approval-cards-container" class="space-y-4">
+    <p class="text-center text-gray-400 py-8">加载中... / Memuat...</p>
   </div>
 </div>
 
@@ -3601,6 +3617,31 @@ function filterOutboundList() {
     </div>
   </div>
 </div>
+
+
+  <!-- 电子签名 / Tanda Tangan Digital -->
+  <div class="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <h4 class="font-medium text-gray-800 mb-4">我的电子签名 <span class="text-xs text-gray-400 font-normal">/ Tanda Tangan Digital Saya</span></h4>
+    <div class="flex flex-col md:flex-row gap-6">
+      <div class="flex-1">
+        <p class="text-sm text-gray-500 mb-3">手写签名 / Tanda tangan tulisan tangan：</p>
+        <canvas id="signature-canvas" width="400" height="150" style="border:1px solid #d1d5db;border-radius:8px;cursor:crosshair;background:#fafafa;max-width:100%;touch-action:none"></canvas>
+        <div class="flex gap-2 mt-2">
+          <button onclick="clearSignatureCanvas()" class="btn-secondary text-xs py-1.5 px-3">清除 / Hapus</button>
+          <button onclick="saveSignatureFromCanvas()" class="btn-primary text-xs py-1.5 px-3">保存签名 / Simpan</button>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">或者上传图片 / Atau unggah gambar：</p>
+        <input type="file" accept="image/*" id="signature-file-input" class="mt-1 text-sm" onchange="uploadSignatureFile(this)">
+      </div>
+      <div class="flex-1">
+        <p class="text-sm text-gray-500 mb-3">当前签名预览 / Pratinjau tanda tangan saat ini：</p>
+        <div id="signature-preview-box" style="border:1px dashed #d1d5db;border-radius:8px;min-height:100px;display:flex;align-items:center;justify-content:center;background:#fff">
+          <span id="signature-preview-placeholder" class="text-sm text-gray-400">暂无签名 / Belum ada tanda tangan</span>
+          <img id="signature-preview-img" src="" alt="签名" style="max-width:100%;max-height:120px;display:none">
+        </div>
+      </div>
+    </div>
+  </div>
 
 <!-- ===== SETTINGS ROLE ===== -->
 <div id="page-settings-role" class="page fade-in">
@@ -5641,6 +5682,8 @@ function navigateTo(pageId) {
     if (pageId === 'finance-payment') { loadFinanceData(); renderPaymentTable(); }
     if (pageId === 'finance-invoice') { loadFinanceData(); renderInvoiceTable(); }
     if (pageId === 'finance-voucher') { loadFinanceData(); renderVoucherTable(); }
+    if (pageId === 'quotation-approve') { loadQuotationData().then(function(){ renderApprovalPage(); }); }
+    if (pageId === 'settings-user') { loadUserSignaturePreview(); }
     gmApplyAdminControls();
   };
 function switchPage(id) { navigateTo(id.replace('page-','')); }
@@ -5662,11 +5705,205 @@ function toggleLanguage() {
 }
 
 function handleApproval(btn, action) {
-  var card = btn.closest('.p-5') || btn.closest('.bg-white');
-  var msg = action === 'approve' ? '\u5DF2\u901A\u8FC7\u5BA1\u6279 / Telah disetujui' : '\u5DF2\u9A73\u56DE / Telah ditolak';
-  if (card) { card.style.opacity = '0.5'; card.style.pointerEvents = 'none'; }
-  var container = btn.parentElement;
-  container.innerHTML = '<span class="badge ' + (action === 'approve' ? 'badge-green' : 'badge-red') + '">' + msg + '</span>';
+  // Find the quotation ID from the card or button context
+  var card = btn.closest('[data-quotation-id]');
+  var qid = card ? card.getAttribute('data-quotation-id') : '';
+  var level = card ? card.getAttribute('data-approval-level') : '';
+  showApprovalModal(qid, level, action);
+}
+
+// ========== 审批弹窗 ==========
+var _pendingApproval = { quotationId: '', level: '', action: '' };
+
+function showApprovalModal(quotationId, level, action) {
+  _pendingApproval = { quotationId: quotationId, level: level, action: action || '' };
+  var modal = document.getElementById('approval-modal');
+  modal.classList.remove('hidden');
+
+  // Find quotation data
+  var q = quotationData.find(function(x){ return x.rawId == quotationId || x.id === quotationId; });
+  var summaryHtml = '';
+  if (q) {
+    summaryHtml = '<p class="font-medium text-gray-800">' + q.id + ' — ' + q.customer + '</p>' +
+      '<p class="text-sm text-gray-600 mt-1">' + q.type + ' · ' + q.amount + '</p>' +
+      '<p class="text-xs text-gray-400 mt-1">申请人 / Pemohon：' + (q.submitter||'-') + '</p>';
+  }
+  document.getElementById('approval-modal-summary').innerHTML = summaryHtml;
+
+  // Show approval history
+  var historyHtml = '<p class="text-sm font-medium text-gray-700 mb-2">📋 审批记录 / Riwayat Persetujuan</p>';
+  if (q && q.approval_chain && q.approval_chain.length > 0) {
+    q.approval_chain.forEach(function(rec) {
+      var icon = rec.action === 'approve' ? '✅' : '❌';
+      var sigImg = rec.signature ? '<img src="' + rec.signature + '" style="max-height:40px;max-width:120px;border:1px solid #e5e7eb;border-radius:4px;margin-top:4px">' : '';
+      historyHtml += '<div class="flex items-start gap-2 mb-2 text-sm"><span>' + icon + '</span><div><span class="font-medium">' + (rec.approver_name||'-') + '</span> <span class="text-gray-400 text-xs">' + (rec.time||'') + '</span>' + (rec.comment ? '<p class="text-red-500 text-xs">原因: ' + rec.comment + '</p>' : '') + sigImg + '</div></div>';
+    });
+  } else {
+    historyHtml += '<p class="text-xs text-gray-400">暂无审批记录 / Belum ada riwayat</p>';
+  }
+  document.getElementById('approval-modal-history').innerHTML = historyHtml;
+
+  // Show appropriate action section
+  if (_pendingApproval.action === 'reject' || action === 'reject') {
+    document.getElementById('approve-section').classList.add('hidden');
+    document.getElementById('reject-section').classList.remove('hidden');
+  } else {
+    document.getElementById('approve-section').classList.remove('hidden');
+    document.getElementById('reject-section').classList.add('hidden');
+    // Load user signature
+    loadUserSignatureForApproval();
+  }
+}
+
+function closeApprovalModal() {
+  document.getElementById('approval-modal').classList.add('hidden');
+  _pendingApproval = { quotationId: '', level: '', action: '' };
+}
+
+async function loadUserSignatureForApproval() {
+  var preview = document.getElementById('approval-sig-preview');
+  if (!currentUser || !currentUser.userId) {
+    preview.innerHTML = '<span class="text-sm text-red-500">请先登录 / Silakan login dulu</span>';
+    return;
+  }
+  var res = await apiCall('GET', '/users/' + currentUser.userId + '/signature');
+  if (res && res.success && res.data && res.data.signature) {
+    preview.innerHTML = '<img src="' + res.data.signature + '" style="max-height:80px;max-width:200px">';
+  } else {
+    preview.innerHTML = '<span class="text-sm text-red-500">⚠️ 尚未上传签名，请先在「系统设置 → 用户管理」上传电子签名<br>Belum upload tanda tangan, silakan upload di「Pengaturan → Pengguna」</span>';
+  }
+}
+
+async function confirmApprove() {
+  if (!_pendingApproval.quotationId) { alert('缺少报价信息 / Data penawaran hilang'); return; }
+  // Get user signature
+  var sigRes = await apiCall('GET', '/users/' + currentUser.userId + '/signature');
+  var signature = (sigRes && sigRes.success && sigRes.data) ? sigRes.data.signature : '';
+  if (!signature) {
+    alert('请先在「系统设置 → 用户管理」上传电子签名后再审批\nSilakan upload tanda tangan di「Pengaturan → Pengguna」sebelum menyetujui');
+    return;
+  }
+  var res = await apiCall('POST', '/quotations/' + _pendingApproval.quotationId + '/approve', { action: 'approve', signature: signature });
+  if (res && res.success) {
+    alert('已通过审批 / Telah disetujui');
+    closeApprovalModal();
+    loadQuotationData().then(function(){ renderQuotationTable(); renderApprovalPage(); });
+  } else {
+    alert('审批失败 / Gagal: ' + (res && res.error ? res.error : '网络错误'));
+  }
+}
+
+async function confirmReject() {
+  if (!_pendingApproval.quotationId) { alert('缺少报价信息 / Data penawaran hilang'); return; }
+  var reason = document.getElementById('reject-reason').value.trim();
+  if (!reason) { alert('请输入驳回原因 / Masukkan alasan penolakan'); return; }
+  var res = await apiCall('POST', '/quotations/' + _pendingApproval.quotationId + '/approve', { action: 'reject', comment: reason });
+  if (res && res.success) {
+    alert('已驳回 / Telah ditolak');
+    closeApprovalModal();
+    loadQuotationData().then(function(){ renderQuotationTable(); renderApprovalPage(); });
+  } else {
+    alert('操作失败 / Gagal: ' + (res && res.error ? res.error : '网络错误'));
+  }
+}
+
+// ========== 报价详情弹窗 ==========
+async function showQuotationDetail(quotationId) {
+  var modal = document.getElementById('quotation-detail-modal');
+  modal.classList.remove('hidden');
+  var container = document.getElementById('quotation-detail-content');
+  container.innerHTML = '<p class="text-center text-gray-400 py-8">加载中...</p>';
+
+  var q = quotationData.find(function(x){ return x.rawId == quotationId || x.id === quotationId; });
+  if (!q) {
+    // Try fetch from API
+    var res = await apiCall('GET', '/quotations/' + quotationId);
+    if (res && res.success && res.data) {
+      q = { rawId: res.data.id, id: res.data.quotation_no || ('QT-' + res.data.id), customer: res.data.customer_name || '', type: res.data.product_type || '工商业储能', amount: 'IDR ' + (res.data.total_amount || 0).toLocaleString(), date: (res.data.created_at || '').slice(0,10), statusKey: res.data.status || 'draft', submitter: res.data.creator_name || '', approval_chain: res.data.approval_chain || [] };
+    }
+  }
+  if (!q) { container.innerHTML = '<p class="text-center text-red-500 py-8">无法加载数据 / Gagal memuat data</p>'; return; }
+
+  var sk = q.statusKey || mapLegacyStatus(q.status);
+  var statusBadge = getApprovalStatusBadge(sk);
+  var html = '<div class="mb-4">' +
+    '<p class="font-medium text-gray-800 text-lg">' + q.id + '</p>' +
+    '<p class="text-sm text-gray-600">' + q.customer + ' · ' + q.type + '</p>' +
+    '<p class="text-sm font-semibold text-gray-800 mt-1">' + q.amount + '</p>' +
+    '<p class="text-xs text-gray-400 mt-1">申请人 / Pemohon：' + (q.submitter||'-') + ' · ' + q.date + '</p>' +
+    '</div>';
+
+  // Approval timeline
+  html += '<div class="border-t border-gray-100 pt-4 mb-4">';
+  html += '<p class="text-sm font-medium text-gray-700 mb-3">📋 审批记录 / Riwayat Persetujuan</p>';
+  html += '<div class="border-l-2 border-gray-200 pl-4 space-y-3">';
+  var chain = q.approval_chain || [];
+  var levels = [{key:'operations_director', zh:'运营总监', id:'Dir. Operasi'}, {key:'tech_director', zh:'技术总监', id:'Dir. Teknik'}, {key:'general_manager', zh:'总经理', id:'Dir. Umum'}];
+  if (chain.length > 0) {
+    chain.forEach(function(rec) {
+      var icon = rec.action === 'approve' ? '✅' : '❌';
+      var sigImg = rec.signature ? '<img src="' + rec.signature + '" style="max-height:40px;max-width:120px;border:1px solid #e5e7eb;border-radius:4px;margin-top:4px">' : '';
+      var commentStr = rec.comment ? '<p class="text-red-500 text-xs mt-1">原因/Alasan: ' + rec.comment + '</p>' : '';
+      html += '<div class="relative"><span class="absolute -left-[22px] top-0 text-base">' + icon + '</span><p class="text-sm font-medium text-gray-800">' + (rec.approver_role || rec.approver_name || '-') + ' — ' + (rec.approver_name || '-') + '</p><p class="text-xs text-gray-400">' + (rec.time || '') + '</p>' + commentStr + sigImg + '</div>';
+    });
+  } else {
+    html += '<p class="text-xs text-gray-400">暂无审批记录 / Belum ada riwayat persetujuan</p>';
+  }
+  html += '</div></div>';
+
+  // Status + export button
+  html += '<div class="border-t border-gray-100 pt-4 flex items-center justify-between">';
+  html += '<div>' + statusBadge + '</div>';
+  if (sk === 'approved') {
+    html += '<button class="btn-primary text-sm" onclick="exportQuotationPDF(\'' + q.rawId + '\')">📤 导出报价单 PDF<br><span class="text-[9px] text-gray-400">Ekspor Penawaran PDF</span></button>';
+  }
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function closeQuotationDetail() {
+  document.getElementById('quotation-detail-modal').classList.add('hidden');
+}
+
+// ========== 审批页渲染 ==========
+function renderApprovalPage() {
+  var container = document.getElementById('approval-cards-container');
+  if (!container) return;
+  var pendingData = quotationData.filter(function(q) {
+    var sk = q.statusKey || mapLegacyStatus(q.status);
+    return ['pending_ops', 'pending_tech', 'pending_gm'].indexOf(sk) > -1;
+  });
+  if (pendingData.length === 0) {
+    container.innerHTML = '<div class="text-center py-12 text-gray-400"><p class="text-4xl mb-3">🎉</p><p>暂无待审批报价 / Tidak ada penawaran yang menunggu persetujuan</p></div>';
+    return;
+  }
+  var roleToLevel = { 'operations_director': 'pending_ops', 'tech_director': 'pending_tech', 'general_manager': 'pending_gm' };
+  var levelNames = { 'pending_ops': {zh:'运营总监',id:'Dir. Operasi'}, 'pending_tech': {zh:'技术总监',id:'Dir. Teknik'}, 'pending_gm': {zh:'总经理',id:'Dir. Umum'} };
+  var html = '';
+  pendingData.forEach(function(q) {
+    var sk = q.statusKey || mapLegacyStatus(q.status);
+    var ln = levelNames[sk] || {zh:'审批',id:'Persetujuan'};
+    var canApprove = (roleToLevel[currentUser.role] === sk);
+    var chainHtml = '';
+    if (q.approval_chain && q.approval_chain.length > 0) {
+      chainHtml = '<div class="mt-2 pt-2 border-t border-gray-100"><p class="text-xs text-gray-500 mb-1">已完成审批 / Sudah disetujui:</p>';
+      q.approval_chain.forEach(function(rec) {
+        chainHtml += '<span class="text-xs text-green-600 mr-2">✅ ' + (rec.approver_name||'-') + '</span>';
+      });
+      chainHtml += '</div>';
+    }
+    html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5" data-quotation-id="' + q.rawId + '" data-approval-level="' + sk + '">' +
+      '<div class="flex items-center justify-between mb-3">' + getApprovalStatusBadge(sk) + '<span class="text-xs text-gray-400">' + q.date + '</span></div>' +
+      '<h4 class="font-medium text-gray-900">' + q.id + ' — ' + q.customer + '</h4>' +
+      '<p class="text-sm text-gray-600 mt-1">' + q.type + ' · ' + q.amount + '</p>' +
+      '<p class="text-xs text-gray-400 mt-1">申请人 / Pemohon：' + (q.submitter||'-') + '</p>' +
+      '<p class="text-xs text-orange-600 mt-1">当前待审批 / Menunggu: ' + ln.zh + ' / ' + ln.id + '</p>' +
+      chainHtml +
+      (canApprove ? '<div class="mt-4 flex gap-2"><button class="btn-success" onclick="showApprovalModal(\''+q.rawId+'\',\''+sk+'\',\'approve\')">通过 <span class="text-[9px]">/ Setuju</span></button><button class="btn-danger" onclick="showApprovalModal(\''+q.rawId+'\',\''+sk+'\',\'reject\')">驳回 <span class="text-[9px]">/ Tolak</span></button></div>' : '<p class="text-xs text-gray-400 mt-3">⏳ 非当前审批人，请等待 / Bukan审批人 saat ini, harap tunggu</p>') +
+      '</div>';
+  });
+  container.innerHTML = html;
 }
 
 // 采购申请物料行操作
@@ -6081,15 +6318,44 @@ async function submitMaterialRequest() {
   }
 }
 
-function exportQuotationPDF() {
+async function exportQuotationPDF(quotationId) {
+  if (quotationId) {
+    try {
+      var baseUrl = (typeof API_BASE === 'string') ? API_BASE : '';
+      var url = baseUrl + '/api/quotations/' + quotationId + '/export';
+      var token = localStorage.getItem('token') || '';
+      var resp = await fetch(url, { headers: token ? {'Authorization': 'Bearer ' + token} : {} });
+      if (resp.ok) {
+        var ct = resp.headers.get('content-type') || '';
+        if (ct.indexOf('application/pdf') > -1) {
+          var blob = await resp.blob();
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'Quotation-' + quotationId + '.pdf';
+          a.click();
+          URL.revokeObjectURL(a.href);
+          return;
+        } else {
+          var htmlContent = await resp.text();
+          var printWindow = window.open('', '_blank');
+          printWindow.document.write(htmlContent);
+          printWindow.document.write('<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script>');
+          printWindow.document.close();
+          return;
+        }
+      }
+    } catch(e) { /* fallback to local print */ }
+  }
   var page = document.getElementById('page-quotation-new');
+  if (!page) { alert('请先打开报价单 / Silakan buka penawaran terlebih dahulu'); return; }
   var printContent = '<div style="padding:20px;">' + page.querySelector('.bg-white').outerHTML + '</div>';
   var printWindow = window.open('', '_blank');
-  printWindow.document.write('<!DOCTYPE html><html><head><title>报价单</title>');
+  printWindow.document.write('<!DOCTYPE html><html><head><title>报价单 / Penawaran</title>');
   printWindow.document.write('<script src="https://cdn.tailwindcss.com"><\/script>');
   printWindow.document.write('<style>body{font-family:sans-serif;margin:0;padding:0;} @media print { body{print-color-adjust:exact;-webkit-print-color-adjust:exact;} }</style>');
   printWindow.document.write('</head><body>');
   printWindow.document.write(printContent);
+  printWindow.document.write('<p style="text-align:center;color:#999;font-size:12px;margin-top:20px;">仅显示业务员签名 / Hanya tanda tangan sales yang ditampilkan</p>');
   printWindow.document.write('<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script>');
   printWindow.document.write('</body></html>');
   printWindow.document.close();
@@ -6630,7 +6896,7 @@ async function loadQuotationData() {
   var res = await apiCall('GET', '/quotations');
   if (res && res.success && res.data) {
     quotationData = res.data.map(function(q) {
-      return { rawId: q.id, id: q.quotation_no || ('QT-' + q.id), customer: q.customer_name || '', type: q.product_type || '工商业储能', amount: 'IDR ' + (q.total_amount || 0).toLocaleString(), date: (q.created_at || '').slice(0,10), status: q.status === 'draft' ? '草稿' : (q.status === 'pending' ? '待审批' : (q.status === 'approved' ? '已审批' : q.status || '草稿')), submitter: q.creator_name || '', department: '销售部', created_by_role: q.created_by_role || '' };
+      return { rawId: q.id, id: q.quotation_no || ('QT-' + q.id), customer: q.customer_name || '', type: q.product_type || '工商业储能', amount: 'IDR ' + (q.total_amount || 0).toLocaleString(), date: (q.created_at || '').slice(0,10), statusKey: q.status || 'draft', status: (approvalStatusMap[q.status] || {zh:'草稿'}).zh, submitter: q.creator_name || '', department: '销售部', created_by_role: q.created_by_role || '', approval_chain: q.approval_chain || [] };
     });
   }
   if (quotationData.length === 0) {
@@ -6800,7 +7066,18 @@ async function submitQuotation(status) {
 
   var res = await apiCall('POST', '/quotations', payload);
   if (res && res.success) {
-    alert((status === 'pending' ? '报价已提交审批 / Penawaran telah diajukan untuk persetujuan' : '报价已保存为草稿 / Penawaran telah disimpan sebagai draf'));
+    var qId = res.data && res.data.id ? res.data.id : '';
+    if (status === 'pending' && qId) {
+      // Submit for approval chain
+      var submitRes = await apiCall('POST', '/quotations/' + qId + '/submit', {});
+      if (submitRes && submitRes.success) {
+        alert('报价已提交审批 / Penawaran telah diajukan untuk persetujuan');
+      } else {
+        alert('报价已创建，但提交审批失败 / Penawaran dibuat, namun gagal diajukan: ' + (submitRes && submitRes.error ? submitRes.error : ''));
+      }
+    } else {
+      alert('报价已保存为草稿 / Penawaran telah disimpan sebagai draf');
+    }
     navigateTo('quotation-list');
   } else {
     alert('提交失败 / Gagal: ' + (res && res.error ? res.error : '网络错误'));
@@ -6951,20 +7228,23 @@ function renderQuotationTable() {
   if (!tbody) return;
   tbody.innerHTML = '';
   quotationData.forEach(function(q, idx) {
-    var statusClass = q.status.indexOf('草稿') > -1 ? 'badge-gray' : (q.status.indexOf('审批') > -1 ? 'badge-orange' : 'badge-green');
+    var sk = q.statusKey || mapLegacyStatus(q.status);
+    var badge = getApprovalStatusBadge(sk);
     var gmBadge = q.created_by_role === 'general_manager' ? ' <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
+    var exportBtn = sk === 'approved' ? '<button class="text-green-600 text-xs hover:underline ml-2" onclick="event.stopPropagation();exportQuotationPDF(\''+q.rawId+'\')">📄 导出<br><span class="text-[9px]">Ekspor</span></button>' : '';
     var tr = document.createElement('tr');
-    tr.className = 'hover:bg-gray-50';
+    tr.className = 'hover:bg-gray-50 cursor-pointer';
     tr.setAttribute('data-submitter', q.submitter || '');
     tr.setAttribute('data-department', q.department || '');
     if (q.rawId) tr.setAttribute('data-dbid', q.rawId);
+    tr.onclick = (function(qid){ return function(){ showQuotationDetail(qid); }; })(q.rawId);
     tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + q.id + gmBadge + '</td>' +
       '<td class="px-5 py-3 text-sm">' + q.customer + '</td>' +
       '<td class="px-5 py-3 text-sm"><span class="badge ' + (q.type.indexOf('EPC') > -1 ? 'badge-purple' : 'badge-blue') + '">' + q.type + '</span></td>' +
       '<td class="px-5 py-3 text-sm font-semibold">' + q.amount + '</td>' +
       '<td class="px-5 py-3 text-sm text-gray-500">' + q.date + '</td>' +
-      '<td class="px-5 py-3"><span class="badge ' + statusClass + '">' + q.status + '</span></td>' +
-      '<td class="px-5 py-3 text-sm"><div class="mt-2 flex gap-2"><button class="btn-success text-xs py-1 px-2" onclick="handleApproval(this,\'approve\')">通过<br><span class="text-[9px]">Setuju</span></button><button class="btn-danger text-xs py-1 px-2" onclick="handleApproval(this,\'reject\')">驳回<br><span class="text-[9px]">Tolak</span></button></div></td>';
+      '<td class="px-5 py-3">' + badge + '</td>' +
+      '<td class="px-5 py-3 text-sm"><button class="text-brand-600 text-sm hover:underline" onclick="event.stopPropagation();showQuotationDetail(\''+ (q.rawId||'') +'\')">查看<br><span class="text-[9px] text-gray-400">Lihat</span></button>' + exportBtn + '</td>';
     tbody.appendChild(tr);
   });
 }
@@ -7617,6 +7897,134 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
   // Show login page (no auto-login)
 });
+
+// ========== 电子签名功能 ==========
+var _sigCanvas, _sigCtx, _sigDrawing = false;
+function initSignatureCanvas() {
+  _sigCanvas = document.getElementById('signature-canvas');
+  if (!_sigCanvas) return;
+  _sigCtx = _sigCanvas.getContext('2d');
+  _sigCtx.strokeStyle = '#1a56db';
+  _sigCtx.lineWidth = 2;
+  _sigCtx.lineCap = 'round';
+  _sigCtx.lineJoin = 'round';
+  // Mouse events
+  _sigCanvas.addEventListener('mousedown', sigStartDraw);
+  _sigCanvas.addEventListener('mousemove', sigDraw);
+  _sigCanvas.addEventListener('mouseup', sigStopDraw);
+  _sigCanvas.addEventListener('mouseout', sigStopDraw);
+  // Touch events
+  _sigCanvas.addEventListener('touchstart', function(e) { e.preventDefault(); var t = e.touches[0]; sigStartDraw({offsetX: t.clientX - _sigCanvas.getBoundingClientRect().left, offsetY: t.clientY - _sigCanvas.getBoundingClientRect().top}); });
+  _sigCanvas.addEventListener('touchmove', function(e) { e.preventDefault(); var t = e.touches[0]; sigDraw({offsetX: t.clientX - _sigCanvas.getBoundingClientRect().left, offsetY: t.clientY - _sigCanvas.getBoundingClientRect().top}); });
+  _sigCanvas.addEventListener('touchend', sigStopDraw);
+}
+function sigStartDraw(e) { _sigDrawing = true; _sigCtx.beginPath(); _sigCtx.moveTo(e.offsetX, e.offsetY); }
+function sigDraw(e) { if (!_sigDrawing) return; _sigCtx.lineTo(e.offsetX, e.offsetY); _sigCtx.stroke(); }
+function sigStopDraw() { _sigDrawing = false; }
+function clearSignatureCanvas() { if (_sigCtx && _sigCanvas) { _sigCtx.clearRect(0, 0, _sigCanvas.width, _sigCanvas.height); } }
+async function saveSignatureFromCanvas() {
+  if (!_sigCanvas) return;
+  var dataUrl = _sigCanvas.toDataURL('image/png');
+  // Check if canvas has content
+  var blank = document.createElement('canvas');
+  blank.width = _sigCanvas.width; blank.height = _sigCanvas.height;
+  if (dataUrl === blank.toDataURL('image/png')) { alert('请先签名 / Silakan tanda tangan terlebih dahulu'); return; }
+  await uploadSignature(dataUrl);
+}
+async function uploadSignatureFile(input) {
+  if (!input.files || !input.files[0]) return;
+  var reader = new FileReader();
+  reader.onload = async function(e) { await uploadSignature(e.target.result); };
+  reader.readAsDataURL(input.files[0]);
+}
+async function uploadSignature(base64Data) {
+  if (!currentUser || !currentUser.userId) { alert('请先登录 / Silakan login'); return; }
+  var res = await apiCall('PUT', '/users/' + currentUser.userId + '/signature', { signature: base64Data });
+  if (res && res.success) {
+    alert('签名已保存 / Tanda tangan telah disimpan');
+    loadUserSignaturePreview();
+  } else {
+    alert('保存失败 / Gagal: ' + (res && res.error ? res.error : '网络错误'));
+  }
+}
+async function loadUserSignaturePreview() {
+  if (!currentUser || !currentUser.userId) return;
+  var res = await apiCall('GET', '/users/' + currentUser.userId + '/signature');
+  var img = document.getElementById('signature-preview-img');
+  var placeholder = document.getElementById('signature-preview-placeholder');
+  if (res && res.success && res.data && res.data.signature) {
+    if (img) { img.src = res.data.signature; img.style.display = 'block'; }
+    if (placeholder) placeholder.style.display = 'none';
+  } else {
+    if (img) img.style.display = 'none';
+    if (placeholder) placeholder.style.display = '';
+  }
+}
+// Init canvas on page load
+document.addEventListener('DOMContentLoaded', function() { initSignatureCanvas(); });
+
 </script>
+
+<!-- ===== APPROVAL MODAL ===== -->
+<div id="approval-modal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center" onclick="if(event.target===this)closeApprovalModal()">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4"><h4 class="text-lg font-semibold text-gray-800">审批操作 / Operasi Persetujuan</h4><button class="text-gray-400 hover:text-gray-600 text-xl" onclick="closeApprovalModal()">✕</button></div>
+    <div id="approval-modal-summary" class="mb-4 p-3 bg-gray-50 rounded-lg text-sm"></div>
+    <div id="approval-modal-history" class="mb-4"></div>
+    <div id="approval-modal-actions">
+      <div id="approve-section" class="mb-4">
+        <p class="text-sm font-medium text-gray-700 mb-2">您的签名 / Tanda tangan Anda：</p>
+        <div id="approval-sig-preview" class="mb-2" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;min-height:60px;display:flex;align-items:center;justify-content:center;background:#fafafa">
+          <span class="text-sm text-gray-400">加载中...</span>
+        </div>
+        <button class="btn-success w-full mt-2" onclick="confirmApprove()">✅ 确认通过 / Konfirmasi Setuju</button>
+      </div>
+      <div id="reject-section" class="hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-1">驳回原因 / Alasan penolakan：</label>
+        <textarea id="reject-reason" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="请输入驳回原因 / Masukkan alasan penolakan..."></textarea>
+        <button class="btn-danger w-full mt-2" onclick="confirmReject()">❌ 确认驳回 / Konfirmasi Tolak</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== QUOTATION DETAIL MODAL ===== -->
+<div id="quotation-detail-modal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center" onclick="if(event.target===this)closeQuotationDetail()">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4"><h4 class="text-lg font-semibold text-gray-800">报价详情 / Detail Penawaran</h4><button class="text-gray-400 hover:text-gray-600 text-xl" onclick="closeQuotationDetail()">✕</button></div>
+    <div id="quotation-detail-content"></div>
+  </div>
+</div>
+
+<!-- ===== APPROVAL MODAL ===== -->
+<div id="approval-modal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center" onclick="if(event.target===this)closeApprovalModal()">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4"><h4 class="text-lg font-semibold text-gray-800">审批操作 / Operasi Persetujuan</h4><button class="text-gray-400 hover:text-gray-600 text-xl" onclick="closeApprovalModal()">✕</button></div>
+    <div id="approval-modal-summary" class="mb-4 p-3 bg-gray-50 rounded-lg text-sm"></div>
+    <div id="approval-modal-history" class="mb-4"></div>
+    <div id="approval-modal-actions">
+      <div id="approve-section" class="mb-4">
+        <p class="text-sm font-medium text-gray-700 mb-2">您的签名 / Tanda tangan Anda：</p>
+        <div id="approval-sig-preview" class="mb-2" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;min-height:60px;display:flex;align-items:center;justify-content:center;background:#fafafa">
+          <span class="text-sm text-gray-400">加载中...</span>
+        </div>
+        <button class="btn-success w-full mt-2" onclick="confirmApprove()">✅ 确认通过 / Konfirmasi Setuju</button>
+      </div>
+      <div id="reject-section" class="hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-1">驳回原因 / Alasan penolakan：</label>
+        <textarea id="reject-reason" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="请输入驳回原因 / Masukkan alasan penolakan..."></textarea>
+        <button class="btn-danger w-full mt-2" onclick="confirmReject()">❌ 确认驳回 / Konfirmasi Tolak</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== QUOTATION DETAIL MODAL ===== -->
+<div id="quotation-detail-modal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center" onclick="if(event.target===this)closeQuotationDetail()">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4"><h4 class="text-lg font-semibold text-gray-800">报价详情 / Detail Penawaran</h4><button class="text-gray-400 hover:text-gray-600 text-xl" onclick="closeQuotationDetail()">✕</button></div>
+    <div id="quotation-detail-content"></div>
+  </div>
+</div>
 </body>
 </html>
