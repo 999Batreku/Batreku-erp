@@ -43,4 +43,40 @@ module.exports = function upgrade(db) {
   if (!exists) {
     db.prepare('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, roleId);
   }
+
+  // 4. quotations 表新增审批相关字段（幂等）
+  const qCols = db.prepare('PRAGMA table_info(quotations)').all().map(c => c.name);
+  const qAlters = [
+    { col: 'approval_status',  sql: "ALTER TABLE quotations ADD COLUMN approval_status TEXT DEFAULT 'draft'" },
+    { col: 'approval_chain',   sql: "ALTER TABLE quotations ADD COLUMN approval_chain TEXT DEFAULT '[]'" },
+    { col: 'rejected_by',      sql: "ALTER TABLE quotations ADD COLUMN rejected_by TEXT" },
+    { col: 'rejected_at',      sql: "ALTER TABLE quotations ADD COLUMN rejected_at DATETIME" },
+    { col: 'rejection_reason', sql: "ALTER TABLE quotations ADD COLUMN rejection_reason TEXT" },
+  ];
+  for (const a of qAlters) {
+    if (qCols.indexOf(a.col) === -1) {
+      db.prepare(a.sql).run();
+      console.log('✅ quotations 表新增列:', a.col);
+    }
+  }
+
+  // 5. users 表新增签名字段（幂等）
+  const uCols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  if (uCols.indexOf('signature_image') === -1) {
+    db.prepare('ALTER TABLE users ADD COLUMN signature_image TEXT').run();
+    console.log('✅ users 表新增列: signature_image');
+  }
+
+  // 6. 将已有 quotations 数据的 approval_status 从旧 status 同步
+  // 旧 status: draft/pending/approved/rejected → 新 approval_status 映射
+  db.prepare(`
+    UPDATE quotations SET approval_status = CASE
+      WHEN status = 'draft' THEN 'draft'
+      WHEN status = 'pending' THEN 'pending_ops'
+      WHEN status = 'approved' THEN 'approved'
+      WHEN status = 'rejected' THEN 'rejected'
+      ELSE 'draft'
+    END
+    WHERE approval_status IS NULL OR approval_status = 'draft'
+  `).run();
 };
