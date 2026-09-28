@@ -1,97 +1,116 @@
-// 数据维护接口：仅总经理（general_manager）可逐条删除 / 清空模块数据
-module.exports = function (db) {
-  const express = require('express');
-  const router = express.Router();
-  const { authMiddleware } = require('../middleware/auth');
+const express = require('express');
+const { authMiddleware } = require('../middleware/auth');
 
+module.exports = function(db) {
+  const router = express.Router();
   router.use(authMiddleware);
 
-  // 模块 → 表映射。主表在前，关联表一并清理
   const MODULE_TABLES = {
-    customers:        ['customers'],
-    inquiries:        ['inquiries'],
-    quotations:       ['quotation_items', 'quotations'],
-    orders:           ['order_items', 'orders'],
-    procurement:      ['procurement_items', 'procurement_requests'],
-    inbound:          ['inbound_orders'],
-    outbound:         ['outbound_orders'],
-    inventory:        ['inventory'],
-    logistics:        ['logistics_orders'],
-    production:       ['production_plans'],
-    payments:         ['payment_records'],
-    employees:        ['employees'],
-    suppliers:        ['suppliers'],
-    materials:        ['materials'],
+    customers: ['customers'],
+    inquiries: ['inquiries'],
+    quotations: ['quotation_items', 'quotations'],
+    orders: ['order_items', 'orders'],
+    procurement: ['procurement_items', 'procurement_requests'],
+    inbound: ['inbound_orders'],
+    outbound: ['outbound_orders'],
+    inventory: ['inventory'],
+    logistics: ['logistics_orders'],
+    production: ['production_plans'],
+    payments: ['payment_records'],
+    employees: ['employees'],
+    suppliers: ['suppliers'],
+    materials: ['materials'],
     material_categories: ['material_categories'],
-    followups:        ['customer_followups'],
-    warehouses:       ['warehouses'],
+    followups: ['customer_followups'],
+    warehouses: ['warehouses']
   };
 
   function isGM(req) {
-    const roles = (req.user && req.user.roles) || [];
-    return roles.indexOf('general_manager') >= 0;
+    return req.user && req.user.roles && req.user.roles.indexOf('general_manager') >= 0;
   }
 
-  // GET /api/admin/modules —— 返回各模块记录数
+  // GET /api/admin/modules - 可清空模块列表
   router.get('/modules', (req, res) => {
-    if (!isGM(req)) return res.status(403).json({ success: false, error: '仅总经理可操作' });
+    if (!isGM(req)) return res.status(403).json({ success: false, error: '仅总经理可访问' });
+    res.json({
+      success: true,
+      data: Object.keys(MODULE_TABLES).map(key => ({ key, label: key }))
+    });
+  });
+
+  // DELETE /api/admin/:module/:id - GM 删除单条记录（含关联子表）
+  router.delete('/:module/:id', async (req, res) => {
     try {
-      const counts = {};
-      Object.keys(MODULE_TABLES).forEach(function (m) {
-        const mainTable = MODULE_TABLES[m][MODULE_TABLES[m].length - 1];
-        counts[m] = db.prepare('SELECT COUNT(*) AS n FROM ' + mainTable).get().n;
+      if (!isGM(req)) return res.status(403).json({ success: false, error: '仅总经理可删除' });
+
+      const tables = MODULE_TABLES[req.params.module];
+      if (!tables) return res.json({ success: false, error: '未知模块' });
+
+      const id = Number(req.params.id);
+
+      await db.tx(async (client) => {
+        // 有子表的模块：先删子表，再删主表
+        if (req.params.module === 'quotations') {
+          await client.query('DELETE FROM quotation_items WHERE quotation_id = $1', [id]);
+        } else if (req.params.module === 'orders') {
+          await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
+        } else if (req.params.module === 'procurement') {
+          await client.query('DELETE FROM procurement_items WHERE request_id = $1', [id]);
+        } else if (req.params.module === 'customers') {
+          // 删除客户前清理所有引用该客户的业务数据
+          await client.query('DELETE FROM quotation_items WHERE quotation_id IN (SELECT id FROM quotations WHERE customer_id = $1)', [id]);
+          await client.query('DELETE FROM quotations WHERE customer_id = $1', [id]);
+          await client.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE customer_id = $1)', [id]);
+          await client.query('DELETE FROM orders WHERE customer_id = $1', [id]);
+          await client.query('DELETE FROM payment_records WHERE customer_id = $1', [id]);
+          await client.query('DELETE FROM customer_followups WHERE customer_id = $1', [id]);
+        }
+        const mainTable = tables[tables.length - 1];
+        await client.query(`DELETE FROM ${mainTable} WHERE id = $1`, [id]);
       });
-      res.json({ success: true, data: counts });
+
+      // GM 操作留痕
+      await db.run(
+        'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+        [req.params.module, id, 'gm_delete', req.user.id, `总经理删除记录 #${id}`]
+      );
+
+      res.json({ success: true, message: '删除成功（总经理操作已记录）' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
   });
 
-  // DELETE /api/admin/:module/:id —— 逐条删除
-  router.delete('/:module/:id', (req, res) => {
-    if (!isGM(req)) return res.status(403).json({ success: false, error: '仅总经理可删除' });
-    const tables = MODULE_TABLES[req.params.module];
-    if (!tables) return res.status(400).json({ success: false, error: '未知模块' });
+  // POST /api/admin/:module/clear-all - GM 清空整个模块
+  router.post('/:module/clear-all', async (req, res) => {
     try {
-      const mainTable = tables[tables.length - 1];
-      const existing = db.prepare('SELECT id FROM ' + mainTable + ' WHERE id = ?').get(req.params.id);
-      if (!existing) return res.status(404).json({ success: false, error: '记录不存在' });
+      if (!isGM(req)) return res.status(403).json({ success: false, error: '仅总经理可清空' });
 
-      // 关联表按外键清理
-      const assoc = {
-        quotations: [{ table: 'quotation_items', fk: 'quotation_id' }],
-        orders: [{ table: 'order_items', fk: 'order_id' }],
-        procurement: [{ table: 'procurement_items', fk: 'request_id' }],
-      };
-      const links = assoc[req.params.module] || [];
-      const tx = db.transaction(function () {
-        links.forEach(function (l) {
-          db.prepare('DELETE FROM ' + l.table + ' WHERE ' + l.fk + ' = ?').run(req.params.id);
-        });
-        db.prepare('DELETE FROM ' + mainTable + ' WHERE id = ?').run(req.params.id);
-      });
-      tx();
-      res.json({ success: true, message: '记录已删除' });
-    } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
-    }
-  });
+      const tables = MODULE_TABLES[req.params.module];
+      if (!tables) return res.json({ success: false, error: '未知模块' });
 
-  // POST /api/admin/:module/clear-all —— 清空整个模块
-  router.post('/:module/clear-all', (req, res) => {
-    if (!isGM(req)) return res.status(403).json({ success: false, error: '仅总经理可清空数据' });
-    const tables = MODULE_TABLES[req.params.module];
-    if (!tables) return res.status(400).json({ success: false, error: '未知模块' });
-    try {
-      const mainTable = tables[tables.length - 1];
-      const count = db.prepare('SELECT COUNT(*) AS n FROM ' + mainTable).get().n;
-      const tx = db.transaction(function () {
-        tables.forEach(function (t) {
-          db.prepare('DELETE FROM ' + t).run();
-        });
+      await db.tx(async (client) => {
+        // 清空客户模块：先清所有引用客户的业务表
+        if (req.params.module === 'customers') {
+          await client.query('DELETE FROM quotation_items');
+          await client.query('DELETE FROM quotations');
+          await client.query('DELETE FROM order_items');
+          await client.query('DELETE FROM orders');
+          await client.query('DELETE FROM payment_records');
+          await client.query('DELETE FROM customer_followups');
+        }
+        // tables 顺序已是子表在前、主表在后
+        for (const t of tables) {
+          await client.query(`DELETE FROM ${t}`);
+        }
       });
-      tx();
-      res.json({ success: true, message: '已清空 ' + count + ' 条数据', count: count });
+
+      await db.run(
+        'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+        [req.params.module, 0, 'gm_clear_all', req.user.id, `总经理清空模块 ${req.params.module}`]
+      );
+
+      res.json({ success: true, message: `已清空 ${req.params.module}（总经理操作已记录）` });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
