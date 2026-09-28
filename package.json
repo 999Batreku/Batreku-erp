@@ -1,15 +1,20 @@
 {
-  "name": "batreku-erp",
+  "name": "batreku_erp_backend",
   "version": "1.0.0",
+  "description": "BATREKU ERP - PostgreSQL backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.0"
   }
 }
