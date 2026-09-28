@@ -3619,9 +3619,10 @@ function filterOutboundList() {
 </div>
 
 
-  <!-- 电子签名 / Tanda Tangan Digital -->
-  <div class="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-    <h4 class="font-medium text-gray-800 mb-4">我的电子签名 <span class="text-xs text-gray-400 font-normal">/ Tanda Tangan Digital Saya</span></h4>
+  <!-- 电子签名 / Tanda Tangan Digital（独立页面，仅在该页显示） -->
+  <div id="page-settings-signature" class="page fade-in">
+    <h3 class="text-lg font-semibold text-gray-800 mb-6">我的电子签名 <span class="text-xs text-gray-400 font-normal">/ Tanda Tangan Digital Saya</span></h3>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
     <div class="flex flex-col md:flex-row gap-6">
       <div class="flex-1">
         <p class="text-sm text-gray-500 mb-3">手写签名 / Tanda tangan tulisan tangan：</p>
@@ -3641,6 +3642,7 @@ function filterOutboundList() {
         </div>
       </div>
     </div>
+  </div>
   </div>
 
 <!-- ===== SETTINGS ROLE ===== -->
@@ -5506,6 +5508,7 @@ var navStructure = [
   ]},
   { id:'settings', icon:'\u2699\uFE0F', label:{zh:'\u7CFB\u7EDF\u8BBE\u7F6E',id:'Pengaturan'}, stage:{zh:'\u56DB',id:'IV'}, children:[
     { label:{zh:'\u7528\u6237\u7BA1\u7406',id:'Pengguna'}, page:'settings-user' },
+    { label:{zh:'\u6211\u7684\u7B7E\u540D',id:'Tanda Tangan Saya'}, page:'settings-signature' },
     { label:{zh:'\u89D2\u8272\u6743\u9650',id:'Hak Akses'}, page:'settings-role' },
     { label:{zh:'\u57FA\u7840\u6570\u636E',id:'Data Dasar'}, page:'settings-base' },
   ]},
@@ -5561,6 +5564,7 @@ var pageTitles = {
   'data-inventory': {zh:'\u5E93\u5B58\u770B\u677F',id:'Dasbor Stok'},
   'data-sales': {zh:'\u9500\u552E\u770B\u677F',id:'Dasbor Penjualan'},
   'settings-user': {zh:'\u7528\u6237\u7BA1\u7406',id:'Pengguna'},
+  'settings-signature': {zh:'\u6211\u7684\u7B7E\u540D',id:'Tanda Tangan Saya'},
   'settings-role': {zh:'\u89D2\u8272\u6743\u9650',id:'Hak Akses'},
   'settings-base': {zh:'\u57FA\u7840\u6570\u636E',id:'Data Dasar'},
   'inquiry-list': {zh:'\u8BE2\u76D8\u5217\u8868',id:'Daftar Permintaan Penawaran'},
@@ -5683,7 +5687,7 @@ function navigateTo(pageId) {
     if (pageId === 'finance-invoice') { loadFinanceData(); renderInvoiceTable(); }
     if (pageId === 'finance-voucher') { loadFinanceData(); renderVoucherTable(); }
     if (pageId === 'quotation-approve') { loadQuotationData().then(function(){ renderApprovalPage(); }); }
-    if (pageId === 'settings-user') { loadUserSignaturePreview(); }
+    if (pageId === 'settings-signature') { loadUserSignaturePreview(); }
     gmApplyAdminControls();
   };
 function switchPage(id) { navigateTo(id.replace('page-','')); }
@@ -5770,7 +5774,7 @@ async function loadUserSignatureForApproval() {
   if (res && res.success && res.data && res.data.signature) {
     preview.innerHTML = '<img src="' + res.data.signature + '" style="max-height:80px;max-width:200px">';
   } else {
-    preview.innerHTML = '<span class="text-sm text-red-500">⚠️ 尚未上传签名，请先在「系统设置 → 用户管理」上传电子签名<br>Belum upload tanda tangan, silakan upload di「Pengaturan → Pengguna」</span>';
+    preview.innerHTML = '<span class="text-sm text-red-500">⚠️ 尚未上传签名，请先在「系统设置 → 我的签名」上传电子签名<br>Belum upload tanda tangan, silakan upload di「Pengaturan → Pengguna」</span>';
   }
 }
 
@@ -5780,7 +5784,7 @@ async function confirmApprove() {
   var sigRes = await apiCall('GET', '/users/' + currentUser.userId + '/signature');
   var signature = (sigRes && sigRes.success && sigRes.data) ? sigRes.data.signature : '';
   if (!signature) {
-    alert('请先在「系统设置 → 用户管理」上传电子签名后再审批\nSilakan upload tanda tangan di「Pengaturan → Pengguna」sebelum menyetujui');
+    alert('请先在「系统设置 → 我的签名」上传电子签名后再审批\nSilakan upload tanda tangan di「Pengaturan → Pengguna」sebelum menyetujui');
     return;
   }
   var res = await apiCall('POST', '/quotations/' + _pendingApproval.quotationId + '/approve', { action: 'approve', signature: signature });
