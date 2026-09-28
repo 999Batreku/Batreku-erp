@@ -2,30 +2,27 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
-// Initialize database
-const db = require('./database/init');
-
-// Run idempotent upgrades (new roles/accounts)
-require('./database/upgrade')(db);
+const db = require('./database/db');
+const initDatabase = require('./database/pg-init');
 
 // Import middleware
 const { authMiddleware } = require('./middleware/auth');
 
-// Import routes
-const authRoutes = require('./routes/auth')(db);
-const userRoutes = require('./routes/users')(db);
-const quotationRoutes = require('./routes/quotations')(db);
-const orderRoutes = require('./routes/orders')(db);
-const procurementRoutes = require('./routes/procurement')(db);
-const warehouseRoutes = require('./routes/warehouse')(db);
-const logisticsRoutes = require('./routes/logistics')(db);
-const productionRoutes = require('./routes/production')(db);
-const financeRoutes = require('./routes/finance')(db);
-const employeeRoutes = require('./routes/employees')(db);
-const customerRoutes = require('./routes/customers')(db);
-const followupRoutes = require('./routes/followups')(db);
-const inquiryRoutes = require('./routes/inquiries')(db);
-const adminRoutes = require('./routes/admin')(db);
+// Import route factories
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const quotationRoutes = require('./routes/quotations');
+const orderRoutes = require('./routes/orders');
+const procurementRoutes = require('./routes/procurement');
+const warehouseRoutes = require('./routes/warehouse');
+const logisticsRoutes = require('./routes/logistics');
+const productionRoutes = require('./routes/production');
+const financeRoutes = require('./routes/finance');
+const employeeRoutes = require('./routes/employees');
+const customerRoutes = require('./routes/customers');
+const followupRoutes = require('./routes/followups');
+const inquiryRoutes = require('./routes/inquiries');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,20 +35,20 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/quotations', quotationRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/procurement', procurementRoutes);
-app.use('/api/warehouse', warehouseRoutes);
-app.use('/api/logistics', logisticsRoutes);
-app.use('/api/production', productionRoutes);
-app.use('/api/finance', financeRoutes);
-app.use('/api/employees', employeeRoutes);
-app.use('/api/customers', customerRoutes);
-app.use('/api/followups', followupRoutes);
-app.use('/api/inquiries', inquiryRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/auth', authRoutes(db));
+app.use('/api/users', userRoutes(db));
+app.use('/api/quotations', quotationRoutes(db));
+app.use('/api/orders', orderRoutes(db));
+app.use('/api/procurement', procurementRoutes(db));
+app.use('/api/warehouse', warehouseRoutes(db));
+app.use('/api/logistics', logisticsRoutes(db));
+app.use('/api/production', productionRoutes(db));
+app.use('/api/finance', financeRoutes(db));
+app.use('/api/employees', employeeRoutes(db));
+app.use('/api/customers', customerRoutes(db));
+app.use('/api/followups', followupRoutes(db));
+app.use('/api/inquiries', inquiryRoutes(db));
+app.use('/api/admin', adminRoutes(db));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -69,7 +66,18 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, error: '服务器内部错误' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 BATREKU ERP Server running at http://0.0.0.0:${PORT}`);
-  console.log(`📊 Database: ${path.join(__dirname, 'database/batreku.db')}`);
-});
+// 先初始化数据库（仅全新空库时写入种子），再启动服务
+async function start() {
+  try {
+    await initDatabase();
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 BATREKU ERP Server running at http://0.0.0.0:${PORT}`);
+      console.log(`📊 Database: PostgreSQL (${process.env.DATABASE_URL ? 'DATABASE_URL' : 'default'})`);
+    });
+  } catch (e) {
+    console.error('❌ Failed to start:', e);
+    process.exit(1);
+  }
+}
+
+start();
