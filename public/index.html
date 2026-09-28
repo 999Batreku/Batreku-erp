@@ -4683,20 +4683,26 @@ var GM_ADMIN_CONFIG = {
   'quotation-list':     {module:'quotations', label:'报价管理', reload:function(){ loadQuotationData().then(function(){ renderQuotationTable(); }); }},
   'order-list':         {module:'orders', label:'订单管理', reload:function(){ loadOrderData().then(function(){ renderOrderTable(); }); }},
   'purchase-request':   {module:'procurement', label:'采购申请', reload:function(){ loadPurchaseData().then(function(){ renderPurchaseTable(); }); }},
+  'purchase-order':     {module:'procurement', label:'采购订单', reload:function(){ loadPurchaseData().then(function(){ renderPurchaseTable(); }); }},
   'joyfull-inbound':    {module:'inbound', label:'JOYFULL入库记录', reload:function(){ loadWarehouseData().then(function(){ renderWarehouseInboundTable(); }); }},
   'pabrik-inbound':     {module:'inbound', label:'PABRIK入库记录', reload:function(){ loadWarehouseData().then(function(){ renderWarehouseInboundTable(); }); }},
   'joyfull-outbound':   {module:'outbound', label:'JOYFULL出库记录', reload:function(){ loadWarehouseData().then(function(){ renderWarehouseOutboundTable(); }); }},
   'pabrik-outbound':    {module:'outbound', label:'PABRIK出库记录', reload:function(){ loadWarehouseData().then(function(){ renderWarehouseOutboundTable(); }); }},
   'logistics-shipment': {module:'logistics', label:'出货物流', reload:function(){ loadLogisticsData().then(function(){ renderLogisticsTable(); }); }},
   'production-plan':    {module:'production', label:'生产计划', reload:function(){ loadProductionData().then(function(){ renderProductionPlanTable(); }); }},
+  'production-material':{module:'production', label:'生产物料', reload:function(){ loadProductionData().then(function(){ renderMaterialRequestTable(); }); }},
   'finance-payment':    {module:'payments', label:'收款记录', reload:function(){ loadFinanceData().then(function(){ renderPaymentTable(); }); }},
+  'finance-invoice':    {module:'payments', label:'发票管理', reload:function(){ loadFinanceData().then(function(){ renderInvoiceTable(); }); }},
+  'finance-voucher':    {module:'payments', label:'凭证管理', reload:function(){ loadFinanceData().then(function(){ renderVoucherTable(); }); }},
   'admin-hr-employee':  {module:'employees', label:'员工档案', reload:function(){ loadEmployeeData().then(function(){ renderEmployeeTable(); }); }},
   // 纯演示数据模块（仅当前页面生效）
   'dealer-list':              {local:true, caches:['_dealerListCache'], label:'经销商列表'},
   'aftersales-list':          {local:true, caches:['_aftersalesListCache'], label:'售后工单'},
   'joyfull-stock-overview':   {local:true, caches:['_joyfullStockCache'], label:'JOYFULL库存'},
   'pabrik-stock-overview':    {local:true, caches:['_pabrikStockCache'], label:'PABRIK库存'},
-  'approval-history':         {local:true, caches:['_approvalListCache'], label:'审批历史'}
+  'approval-history':         {local:true, caches:['_approvalListCache'], label:'审批历史'},
+  'approval-pending':         {local:true, caches:['_approvalListCache'], label:'待我审批'},
+  'approval-my':              {local:true, caches:['_approvalListCache'], label:'我的申请'}
 };
 
 var GM_LOCAL_CACHE_FIELDS = {
@@ -4723,11 +4729,19 @@ function gmInitToolbar(pageId, cfg) {
   if (!bar) {
     bar = document.createElement('div');
     bar.id = 'gm-toolbar-' + pageId;
-    bar.className = 'mb-3';
-    bar.innerHTML = '<button class="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded-lg hover:bg-red-200 border border-red-200">🗑 清空本模块全部数据 <span class="opacity-700">/ Hapus Semua</span></button>';
+    bar.className = 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between';
+    bar.innerHTML = '<button class="bg-red-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-700 font-medium shadow-sm">🗑 清空本模块全部数据 <span class="opacity-80 text-xs ml-1">/ Hapus Semua</span></button><span class="text-xs text-red-500">仅总经理可用 / Khusus General Manager</span>';
     var anchor = page.querySelector('h3, h4');
-    if (anchor) anchor.parentNode.insertBefore(bar, anchor);
-    else page.insertBefore(bar, page.firstChild);
+    if (anchor) {
+      var headerRow = anchor.closest('.flex') || anchor.parentNode;
+      if (headerRow && headerRow.parentNode === page) {
+        page.insertBefore(bar, headerRow.nextSibling);
+      } else {
+        anchor.parentNode.insertBefore(bar, anchor);
+      }
+    } else {
+      page.insertBefore(bar, page.firstChild);
+    }
   }
   bar.style.display = isGM() ? '' : 'none';
 }
@@ -4840,6 +4854,7 @@ function gmScheduleDecorate() {
     var cfg = GM_ADMIN_CONFIG[pageId];
     if (!cfg) return;
     if (!isGM()) return;
+    gmInitToolbar(pageId, cfg);
     gmDecorateRows(pageId, cfg);
   }, 250);
 }
