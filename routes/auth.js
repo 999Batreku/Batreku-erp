@@ -8,13 +8,13 @@ module.exports = function(db) {
   const router = express.Router();
 
   // POST /api/auth/login
-  router.post('/login', (req, res) => {
+  router.post('/login', async (req, res) => {
     try {
       const { username, password } = req.body;
       if (!username || !password) {
         return res.json({ success: false, error: '用户名和密码不能为空' });
       }
-      const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+      const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
       if (!user || !bcrypt.compareSync(password, user.password)) {
         return res.json({ success: false, error: '用户名或密码错误' });
       }
@@ -22,11 +22,11 @@ module.exports = function(db) {
         return res.json({ success: false, error: '账号已被禁用' });
       }
       // 获取角色
-      const roles = db.prepare(`
+      const roles = await db.all(`
         SELECT r.name, r.display_name FROM roles r
         JOIN user_roles ur ON ur.role_id = r.id
         WHERE ur.user_id = ?
-      `).all(user.id);
+      `, [user.id]);
 
       const token = jwt.sign({
         id: user.id,
@@ -60,14 +60,14 @@ module.exports = function(db) {
   });
 
   // GET /api/auth/profile
-  router.get('/profile', authMiddleware, (req, res) => {
+  router.get('/profile', authMiddleware, async (req, res) => {
     try {
-      const user = db.prepare('SELECT id, username, real_name, email, phone, status, created_at FROM users WHERE id = ?').get(req.user.id);
-      const roles = db.prepare(`
+      const user = await db.get('SELECT id, username, real_name, email, phone, status, created_at FROM users WHERE id = ?', [req.user.id]);
+      const roles = await db.all(`
         SELECT r.name, r.display_name, r.level FROM roles r
         JOIN user_roles ur ON ur.role_id = r.id
         WHERE ur.user_id = ?
-      `).all(req.user.id);
+      `, [req.user.id]);
       res.json({ success: true, data: { ...user, roles } });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
