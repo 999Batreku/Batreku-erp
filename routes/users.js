@@ -18,7 +18,12 @@ module.exports = function(db) {
     'production_staff': 'production_manager',
     'finance_staff': 'finance_manager',
     'admin_staff': 'hr_manager',
-    'aftersales_staff': 'sales_rep'
+    'aftersales_staff': 'aftersales_staff',
+    'accountant': 'accountant',
+    'maintenance_staff': 'maintenance_staff',
+    'warehouse_staff': 'warehouse_staff',
+    'aftersales': 'aftersales_staff',
+    'maintenance': 'maintenance_staff'
   };
 
   // GET /api/users
