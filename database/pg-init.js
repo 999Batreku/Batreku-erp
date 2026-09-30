@@ -535,9 +535,26 @@ async function ensureColumns() {
   await db.query("UPDATE logistics_orders SET approval_status = 'pending_ops' WHERE approval_status IS NULL OR approval_status = 'pending'", []);
 }
 
+// 幂等新增角色
+async function ensureRoles() {
+  const extraRoles = [
+    ['accountant', '会计', '账务核算、凭证管理', 'L1'],
+    ['aftersales_staff', '售后专员', '售后工单受理与跟进', 'L1'],
+    ['maintenance_staff', '运维专员', '设备运维、现场巡检', 'L1'],
+    ['warehouse_staff', '仓管员', '仓库出入库操作', 'L1'],
+  ];
+  for (const r of extraRoles) {
+    await db.query(
+      `INSERT INTO roles (name, display_name, description, level)
+       VALUES (?,?,?,?) ON CONFLICT (name) DO NOTHING`, r
+    );
+  }
+}
+
 async function initDatabase() {
   await db.query(DDL, []);
   await ensureColumns();
+  await ensureRoles();
 
   // 生产环境保护：SEED_DATA=false 时永不写入种子数据，防止已录入数据被覆盖
   if (process.env.SEED_DATA === 'false') {
