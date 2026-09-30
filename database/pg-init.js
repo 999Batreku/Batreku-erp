@@ -479,6 +479,12 @@ async function initDatabase() {
   await db.query(DDL, []);
   await ensureColumns();
 
+  // 生产环境保护：SEED_DATA=false 时永不写入种子数据，防止已录入数据被覆盖
+  if (process.env.SEED_DATA === 'false') {
+    console.log('🔒 SEED_DATA=false：跳过种子数据写入（生产环境保护模式）');
+    return;
+  }
+
   const check = await db.get('SELECT COUNT(*)::int AS n FROM users', []);
   if (check.n === 0) {
     await db.tx(seedFresh);
