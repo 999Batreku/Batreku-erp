@@ -371,6 +371,48 @@ CREATE TABLE IF NOT EXISTS customer_followups (
   created_by TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 经销商准入申请
+CREATE TABLE IF NOT EXISTS dealer_applications (
+  id SERIAL PRIMARY KEY,
+  application_no TEXT UNIQUE,
+  dealer_name TEXT,
+  contact_person TEXT,
+  phone TEXT,
+  email TEXT,
+  address TEXT,
+  business_license TEXT,
+  business_scope TEXT,
+  annual_revenue TEXT,
+  cooperation_history TEXT,
+  notes TEXT,
+  approval_status TEXT DEFAULT 'pending_ops',
+  approval_chain TEXT DEFAULT '[]',
+  approved_by INTEGER,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 售后工单
+CREATE TABLE IF NOT EXISTS aftersales_tickets (
+  id SERIAL PRIMARY KEY,
+  ticket_no TEXT UNIQUE,
+  order_id INTEGER REFERENCES orders(id),
+  customer_id INTEGER REFERENCES customers(id),
+  issue_type TEXT,
+  priority TEXT DEFAULT 'P3',
+  description TEXT,
+  resolution TEXT,
+  assigned_to INTEGER,
+  sla_deadline TIMESTAMP,
+  approval_status TEXT DEFAULT 'pending_ops',
+  approval_chain TEXT DEFAULT '[]',
+  approved_by INTEGER,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 `;
 
 const rolesData = [
@@ -473,10 +515,19 @@ async function seedFresh(t) {
 // 幂等补列：为已存在的老库补充新字段（Postgres 无原生 ADD COLUMN IF NOT EXISTS 兼容问题，直接用即可）
 async function ensureColumns() {
   await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS approval_signature TEXT', []);
+  await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT \'[]\'', []);
   await db.query('ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT \'[]\'', []);
+  // inquiries 加审批字段
+  await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_ops'", []);
+  await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT '[]'", []);
+  // logistics_orders 加审批字段
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_ops'", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT '[]'", []);
   // 迁移：将旧的 'pending' 状态升级为 'pending_ops'（三级审批流）
   await db.query("UPDATE customers SET approval_status = 'pending_ops' WHERE approval_status = 'pending'", []);
   await db.query("UPDATE procurement_requests SET status = 'pending_ops' WHERE status = 'pending'", []);
+  await db.query("UPDATE inquiries SET approval_status = 'pending_ops' WHERE approval_status IS NULL OR approval_status = 'new'", []);
+  await db.query("UPDATE logistics_orders SET approval_status = 'pending_ops' WHERE approval_status IS NULL OR approval_status = 'pending'", []);
 }
 
 async function initDatabase() {
