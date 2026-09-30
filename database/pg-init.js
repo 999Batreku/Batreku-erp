@@ -284,7 +284,8 @@ CREATE TABLE IF NOT EXISTS logistics_orders (
   estimated_arrival DATE,
   notes TEXT,
   created_by INTEGER REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 生产计划
@@ -523,6 +524,7 @@ async function ensureColumns() {
   // logistics_orders 加审批字段
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_ops'", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT '[]'", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", []);
   // 迁移：将旧的 'pending' 状态升级为 'pending_ops'（三级审批流）
   await db.query("UPDATE customers SET approval_status = 'pending_ops' WHERE approval_status = 'pending'", []);
   await db.query("UPDATE procurement_requests SET status = 'pending_ops' WHERE status = 'pending'", []);
