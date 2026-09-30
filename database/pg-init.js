@@ -473,6 +473,10 @@ async function seedFresh(t) {
 // 幂等补列：为已存在的老库补充新字段（Postgres 无原生 ADD COLUMN IF NOT EXISTS 兼容问题，直接用即可）
 async function ensureColumns() {
   await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS approval_signature TEXT', []);
+  await db.query('ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT \'[]\'', []);
+  // 迁移：将旧的 'pending' 状态升级为 'pending_ops'（三级审批流）
+  await db.query("UPDATE customers SET approval_status = 'pending_ops' WHERE approval_status = 'pending'", []);
+  await db.query("UPDATE procurement_requests SET status = 'pending_ops' WHERE status = 'pending'", []);
 }
 
 async function initDatabase() {
