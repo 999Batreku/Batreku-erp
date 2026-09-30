@@ -5,24 +5,63 @@ module.exports = function(db) {
   const router = express.Router();
   router.use(authMiddleware);
 
+  // 三级审批流
+  const APPROVAL_LEVEL_ROLE = {
+    'pending_ops':  'operations_director',
+    'pending_tech': 'technical_director',
+    'pending_gm':   'general_manager',
+  };
+  const APPROVAL_LEVEL_LABEL = {
+    'pending_ops':  '运营总监',
+    'pending_tech': '技术总监',
+    'pending_gm':   '总经理',
+  };
+  const APPROVAL_FLOW = ['pending_ops', 'pending_tech', 'pending_gm'];
+
   const APPROVER_ROLES = ['operations_director', 'general_manager', 'technical_director'];
   function canApprove(req) {
     const roles = (req.user && req.user.roles) || [];
     return roles.some(function(r){ return APPROVER_ROLES.indexOf(r) >= 0; });
   }
+  function hasRole(roles, role) {
+    return roles.indexOf(role) >= 0;
+  }
+  async function getUserRoles(userId) {
+    const rows = await db.all(
+      'SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = ?',
+      [userId]
+    );
+    return rows.map(function(r){ return r.name; });
+  }
+  function parseChain(raw) {
+    try { return JSON.parse(raw || '[]'); } catch(e) { return []; }
+  }
 
-  // GET /api/customers?approval_status=pending
+  // GET /api/customers?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm
+  // 支持多状态查询：?approval_status=pending_ops&approval_status=pending_tech
   router.get('/', async (req, res) => {
     try {
       let customers;
-      if (req.query.approval_status) {
-        customers = await db.all(`
-          SELECT * FROM customers WHERE approval_status = ? ORDER BY id DESC
-        `, [req.query.approval_status]);
+      const statusFilter = req.query.approval_status;
+      if (statusFilter) {
+        const statuses = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
+        if (statuses.length === 1) {
+          customers = await db.all(
+            'SELECT * FROM customers WHERE approval_status = ? ORDER BY id DESC',
+            [statuses[0]]
+          );
+        } else {
+          const placeholders = statuses.map(function(){ return '?'; }).join(',');
+          customers = await db.all(
+            'SELECT * FROM customers WHERE approval_status IN (' + placeholders + ') ORDER BY id DESC',
+            statuses
+          );
+        }
       } else {
-        customers = await db.all(`
-          SELECT * FROM customers ORDER BY id DESC
-        `, []);
+        customers = await db.all(
+          'SELECT * FROM customers ORDER BY id DESC',
+          []
+        );
       }
       res.json({ success: true, data: customers });
     } catch (e) {
@@ -71,7 +110,7 @@ module.exports = function(db) {
         initial_needs || '', Array.isArray(product_types) ? product_types.join(',') : (product_types || ''),
         estimated_kw || null, estimated_kwh || null,
         Array.isArray(locations) ? JSON.stringify(locations) : (locations || ''),
-        grade || '', source_channel || '', salesperson || '', approval_status || 'pending'
+        grade || '', source_channel || '', salesperson || '', approval_status || 'pending_ops'
       ]);
 
       res.json({ success: true, data: { id: result.lastInsertRowid, customer_code: code } });
@@ -130,7 +169,8 @@ module.exports = function(db) {
     }
   });
 
-  // PUT /api/customers/:id/approve
+  // PUT /api/customers/:id/approve — 三级审批流
+  // pending_ops → pending_tech → pending_gm → approved
   router.put('/:id/approve', async (req, res) => {
     try {
       if (!canApprove(req)) {
@@ -139,22 +179,19 @@ module.exports = function(db) {
       const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
       if (!customer) return res.json({ success: false, error: '客户不存在' });
 
-      const inputCode = ((req.body && req.body.customer_code) || '').trim();
-      if (inputCode) {
-        const dup = await db.get("SELECT id, customer_code FROM customers WHERE UPPER(customer_code) = UPPER(?) AND id != ?",
-          [inputCode, req.params.id]);
-        if (dup) {
-          return res.status(400).json({ success: false, error: '客户编码已存在：' + dup.customer_code });
-        }
+      const aStatus = customer.approval_status || 'pending_ops';
+      const currentIndex = APPROVAL_FLOW.indexOf(aStatus);
+      if (currentIndex === -1) {
+        return res.status(400).json({ success: false, error: '该客户当前状态(' + aStatus + ')不允许审批' });
       }
-      let code = inputCode || customer.customer_code;
-      if (!code) {
-        const last = await db.get("SELECT customer_code FROM customers WHERE customer_code IS NOT NULL AND customer_code != '' ORDER BY id DESC LIMIT 1", []);
-        let num = 1;
-        if (last && last.customer_code) {
-          num = parseInt(last.customer_code.replace('CUS-', '')) + 1;
-        }
-        code = 'CUS-' + String(num).padStart(3, '0');
+
+      const currentLevelRole = APPROVAL_LEVEL_ROLE[aStatus];
+      const userRoles = await getUserRoles(req.user.id);
+      if (!hasRole(userRoles, currentLevelRole)) {
+        return res.status(403).json({
+          success: false,
+          error: '当前客户处于【' + APPROVAL_LEVEL_LABEL[aStatus] + '】审批环节，需要' + APPROVAL_LEVEL_LABEL[aStatus] + '角色，您无此权限'
+        });
       }
 
       const remark = (req.body && req.body.remark) || '';
@@ -163,25 +200,83 @@ module.exports = function(db) {
         return res.status(400).json({ success: false, error: '审批通过必须签署电子签名' });
       }
       const approverName = (req.user.real_name || req.user.username || '') + '';
-      await db.run(`
-        UPDATE customers SET
-          approval_status = 'approved',
-          customer_code = ?,
-          approved_by = ?,
-          approval_remark = ?,
-          approval_signature = ?,
-          approved_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [code, approverName, remark, signature, req.params.id]);
+
+      // 计算下一级状态
+      const isLastLevel = (currentIndex === APPROVAL_FLOW.length - 1);
+      const nextStatus = isLastLevel ? 'approved' : APPROVAL_FLOW[currentIndex + 1];
+
+      // 运营总监审批时设置客户编码
+      let code = customer.customer_code;
+      if (aStatus === 'pending_ops') {
+        const inputCode = ((req.body && req.body.customer_code) || '').trim();
+        if (inputCode) {
+          const dup = await db.get("SELECT id, customer_code FROM customers WHERE UPPER(customer_code) = UPPER(?) AND id != ?",
+            [inputCode, req.params.id]);
+          if (dup) {
+            return res.status(400).json({ success: false, error: '客户编码已存在：' + dup.customer_code });
+          }
+          code = inputCode;
+        }
+        if (!code) {
+          const last = await db.get("SELECT customer_code FROM customers WHERE customer_code IS NOT NULL AND customer_code != '' ORDER BY id DESC LIMIT 1", []);
+          let num = 1;
+          if (last && last.customer_code) {
+            num = parseInt(last.customer_code.replace('CUS-', '')) + 1;
+          }
+          code = 'CUS-' + String(num).padStart(3, '0');
+        }
+      }
+
+      // 更新 approval_chain JSON
+      const chain = parseChain(customer.approval_chain);
+      chain.push({
+        level: APPROVAL_LEVEL_LABEL[aStatus],
+        status: aStatus,
+        action: 'approve',
+        approver: approverName,
+        approver_id: req.user.id,
+        remark: remark,
+        signature: signature,
+        timestamp: new Date().toISOString()
+      });
+      const chainJson = JSON.stringify(chain);
+
+      // 最终审批（GM）时写 approved_by 等字段
+      if (isLastLevel) {
+        await db.run(`
+          UPDATE customers SET
+            approval_status = 'approved',
+            customer_code = ?,
+            approved_by = ?,
+            approval_remark = ?,
+            approval_signature = ?,
+            approved_at = CURRENT_TIMESTAMP,
+            approval_chain = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [code, approverName, remark, signature, chainJson, req.params.id]);
+
+        res.json({ success: true, data: { id: req.params.id, approval_status: 'approved', customer_code: code },
+          message: '三级审批全部完成，客户编码 ' + code });
+      } else {
+        await db.run(`
+          UPDATE customers SET
+            approval_status = ?,
+            customer_code = ?,
+            approval_chain = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [nextStatus, code, chainJson, req.params.id]);
+
+        res.json({ success: true, data: { id: req.params.id, approval_status: nextStatus, customer_code: code },
+          message: APPROVAL_LEVEL_LABEL[aStatus] + '已审批通过，流转至【' + APPROVAL_LEVEL_LABEL[nextStatus] + '】审批' });
+      }
 
       await db.run(
         'INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
-        ['customer', req.params.id, 'approve', req.user.id, remark || '审批通过']
+        ['customer', req.params.id, 'approve_' + aStatus, req.user.id, remark || APPROVAL_LEVEL_LABEL[aStatus] + '审批通过']
       );
 
-      const updated = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
-      res.json({ success: true, data: updated, message: '已审批通过，客户编码 ' + code });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
