@@ -521,6 +521,9 @@ async function ensureColumns() {
   // inquiries 加审批字段
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_ops'", []);
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT '[]'", []);
+  await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approved_by INTEGER", []);
+  await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_remark TEXT", []);
+  await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_signature TEXT", []);
   // logistics_orders 加审批字段
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_ops'", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT '[]'", []);
