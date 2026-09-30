@@ -260,7 +260,7 @@ tailwind.config = {
         <option value="A">A级 / Level A</option><option value="B">B级 / Level B</option><option value="C">C级 / C级 / Level C</option><option value="D">D级 / Level D</option>
       </select>
       <select id="cust-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterCustomerList()"><option value="">全部编码状态 / Semua Status Kode</option>
-        <option value="pending">待审批 / Menunggu</option><option value="approved">已批准 / Disetujui</option>
+        <option value="pending_ops">待运营总监审批 / Menunggu Dir. Operasi</option><option value="pending_tech">待技术总监审批 / Menunggu Dir. Teknik</option><option value="pending_gm">待总经理审批 / Menunggu Dir. Umum</option><option value="approved">已批准 / Disetujui</option><option value="rejected">已驳回 / Ditolak</option>
       </select>
     </div>
     <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
@@ -605,7 +605,7 @@ tailwind.config = {
     if (wrap) wrap.classList.remove('hidden');
 
     listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
-    var res = await apiCall('GET', '/customers?approval_status=pending');
+    var res = await apiCall('GET', '/customers?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm');
     if (!res || !res.success) {
       listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>';
       return;
@@ -621,13 +621,21 @@ tailwind.config = {
   function renderCustomerApprovals(data) {
     var listEl = document.getElementById('approval-customer-list');
     var gradeBadge = {'A':'badge-blue','B':'badge-green','C':'badge-yellow','D':'badge-gray'};
-    var isOpsDirector = currentUser && currentUser.role === 'operations_director';
-    console.log('审批页面渲染 - 当前角色:', currentUser ? currentUser.role : '未登录', '是否运营总监:', isOpsDirector);
+    var roleMap = { 'operations_director':'运营总监', 'tech_director':'技术总监', 'general_manager':'总经理' };
+    var levelMap = { 'pending_ops':'运营总监审批中', 'pending_tech':'技术总监审批中', 'pending_gm':'总经理审批中' };
+    var levelColorMap = { 'pending_ops':'badge-yellow', 'pending_tech':'badge-blue', 'pending_gm':'badge-green' };
+    var myRole = currentUser ? currentUser.role : '';
+    var levelRoleMap = { 'pending_ops':'operations_director', 'pending_tech':'tech_director', 'pending_gm':'general_manager' };
+    console.log('审批页面渲染 - 当前角色:', myRole);
     var html = '';
     for (var i = 0; i < data.length; i++) {
       var c = data[i];
       var g = normGrade(c.grade);
       var code = c.customer_code || ('CUS-' + String(c.id).padStart(3, '0'));
+      var aStatus = c.approval_status || 'pending_ops';
+      var isMyTurn = (levelRoleMap[aStatus] === myRole);
+      var isOpsLevel = (aStatus === 'pending_ops');
+
       var detailParts = [];
       detailParts.push('<span class="text-gray-500">联系人：</span>' + (c.contact_person || '-'));
       detailParts.push('<span class="text-gray-500">电话/WA：</span>' + (c.whatsapp || c.phone || '-'));
@@ -636,51 +644,67 @@ tailwind.config = {
       if (c.salesperson) detailParts.push('<span class="text-gray-500">业务员：</span>' + c.salesperson);
       if (c.address) detailParts.push('<span class="text-gray-500">地址：</span>' + c.address);
 
+      var levelBadge = '<span class="badge ' + (levelColorMap[aStatus] || 'badge-yellow') + '">' + (levelMap[aStatus] || aStatus) + '<br><span class="text-[11px]">Menunggu ' + (roleMap[levelRoleMap[aStatus]] || '') + '</span></span>';
+
       var inputSection = '';
-      if (isOpsDirector) {
-        inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
-          +   '<div class="mb-3">'
-          +     '<label class="text-xs font-medium text-gray-600 mb-1 block">客户编码 <span class="text-red-400">*</span> <span class="text-gray-400 font-normal">/ Kode Pelanggan（如 LT-274-01）</span></label>'
-          +     '<input id="approval-code-' + c.id + '" type="text" class="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none transition" placeholder="输入正式客户编码，如 LT-274-01 / Masukkan kode pelanggan, misal LT-274-01">'
-          +   '</div>'
-          +   '<div class="mb-3">'
-          +     '<label class="text-xs font-medium text-gray-600 mb-1 block">审批意见 <span class="text-gray-400 font-normal">/ Catatan（驳回时必填）</span></label>'
-          +     '<textarea id="approval-remark-' + c.id + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" placeholder="输入审批意见... / Masukkan pendapat persetujuan..."></textarea>'
-          +   '</div>'
-          + '</div>';
+      if (isMyTurn) {
+        if (isOpsLevel) {
+          inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
+            +   '<div class="mb-3">'
+            +     '<label class="text-xs font-medium text-gray-600 mb-1 block">客户编码 <span class="text-red-400">*</span> <span class="text-gray-400 font-normal">/ Kode Pelanggan</span></label>'
+            +     '<input id="approval-code-' + c.id + '" type="text" class="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none transition" placeholder="输入正式客户编码 / Masukkan kode pelanggan">'
+            +   '</div>'
+            +   '<div class="mb-3">'
+            +     '<label class="text-xs font-medium text-gray-600 mb-1 block">审批意见 <span class="text-gray-400 font-normal">/ Catatan（驳回时必填）</span></label>'
+            +     '<textarea id="approval-remark-' + c.id + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" placeholder="输入审批意见... / Masukkan pendapat persetujuan..."></textarea>'
+            +   '</div>'
+            + '</div>';
+        } else {
+          inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
+            +   '<div class="mb-3">'
+            +     '<label class="text-xs font-medium text-gray-600 mb-1 block">客户编码 <span class="text-gray-400 font-normal">/ Kode Pelanggan（已由运营总监分配）</span></label>'
+            +     '<div class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-mono">' + code + '</div>'
+            +     '<input id="approval-code-' + c.id + '" type="hidden" value="' + code + '">'
+            +   '</div>'
+            +   '<div class="mb-3">'
+            +     '<label class="text-xs font-medium text-gray-600 mb-1 block">审批意见 <span class="text-gray-400 font-normal">/ Catatan（驳回时必填）</span></label>'
+            +     '<textarea id="approval-remark-' + c.id + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" placeholder="输入审批意见... / Masukkan pendapat persetujuan..."></textarea>'
+            +   '</div>'
+            + '</div>';
+        }
       } else {
         inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
-          +   '<div class="mb-3">'
-          +     '<label class="text-xs font-medium text-gray-600 mb-1 block">客户编码 <span class="text-gray-400 font-normal">/ Kode Pelanggan（运营总监填写）</span></label>'
-          +     '<div class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-mono">' + code + '</div>'
-          +     '<input id="approval-code-' + c.id + '" type="hidden" value="' + code + '">'
-          +   '</div>'
-          +   '<div class="mb-3">'
-          +     '<label class="text-xs font-medium text-gray-600 mb-1 block">审批意见 <span class="text-red-400">*</span> <span class="text-gray-400 font-normal">/ Catatan（必填）</span></label>'
-          +     '<textarea id="approval-remark-' + c.id + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" placeholder="输入审批意见... / Masukkan pendapat persetujuan..."></textarea>'
-          +   '</div>'
+          + '<div class="text-sm text-gray-400 py-2">⏳ 等待 ' + (roleMap[levelRoleMap[aStatus]] || '') + ' 审批 / Menunggu persetujuan ' + (roleMap[levelRoleMap[aStatus]] || '') + '</div>'
+          + '<input id="approval-code-' + c.id + '" type="hidden" value="' + code + '">'
+          + '<textarea id="approval-remark-' + c.id + '" style="display:none;"></textarea>'
           + '</div>';
       }
 
-      var approveBtnText = isOpsDirector ? '✅ 通过并发放编码' : '✅ 审批通过';
+      var approveBtnText = isOpsLevel && isMyTurn ? '✅ 通过并发放编码' : '✅ 审批通过';
+      var actionButtons = '';
+      if (isMyTurn) {
+        actionButtons = '<div class="flex gap-2">'
+          +   '<button class="btn-success" onclick="handleCustomerApproval(' + c.id + ',\'approve\')">' + approveBtnText + '</button>'
+          +   '<button class="btn-danger" onclick="handleCustomerApproval(' + c.id + ',\'reject\')">❌ 驳回<br><span class="text-[11px] text-gray-400">❌ Tolak</span></button>'
+          + '</div>';
+      } else {
+        actionButtons = '<div class="text-xs text-gray-400 py-1">当前不在您的审批环节 / Bukan giliran Anda</div>';
+      }
 
       html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">'
         + '<div class="flex items-center justify-between mb-3">'
         +   '<div class="flex items-center gap-2">'
-        +     '<span class="badge badge-yellow">客户审批<br><span class="text-[11px]">Persetujuan Pelanggan</span></span>'
+        +     levelBadge
         +     '<span class="text-sm font-medium text-gray-800">' + (c.name || '') + '</span>'
         +     '<span class="badge ' + (gradeBadge[g] || 'badge-gray') + '">' + g + '级</span>'
         +   '</div>'
-        +   '<span class="text-xs text-gray-400 font-mono">临时ID #' + c.id + '</span>'
+        +   '<span class="text-xs text-gray-400 font-mono">#' + c.id + '</span>'
         + '</div>'
         + '<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-gray-700 mb-4">'
         +   detailParts.map(function(p){ return '<div>' + p + '</div>'; }).join('')
         + '</div>'
         + inputSection
-        + '<div class="flex gap-2">'
-        +   '<button class="btn-success" onclick="handleCustomerApproval(' + c.id + ',\'approve\')">' + approveBtnText + '</button>'
-        +   '<button class="btn-danger" onclick="handleCustomerApproval(' + c.id + ',\'reject\')">❌ 驳回<br><span class="text-[11px] text-gray-400">❌ Tolak</span></button>'
-        + '</div>'
+        + actionButtons
         + '</div>';
     }
     listEl.innerHTML = html;
@@ -736,6 +760,218 @@ tailwind.config = {
     }
   }
 
+  // ========== 审批模块切换 ==========
+  var _currentApprovalModule = 'customer';
+  function switchApprovalModule(mod) {
+    _currentApprovalModule = mod;
+    var tabs = document.querySelectorAll('#approval-module-tabs button');
+    tabs.forEach(function(btn){ btn.className = 'px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200'; });
+    var idx = {'customer':0,'inquiry':1,'shipping':2,'dealer':3,'aftersales':4};
+    if (tabs[idx[mod]]) tabs[idx[mod]].className = 'px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white';
+    var containers = {
+      'customer': 'approval-list-wrap',
+      'inquiry': 'approval-inquiry-list',
+      'shipping': 'approval-shipping-list',
+      'dealer': 'approval-dealer-list',
+      'aftersales': 'approval-aftersales-list'
+    };
+    Object.keys(containers).forEach(function(k){
+      var el = document.getElementById(containers[k]);
+      if (el) {
+        if (k === mod) { el.classList.remove('hidden'); } else { el.classList.add('hidden'); }
+      }
+    });
+    var descMap = {
+      'customer': '业务员录入的新客户默认为「待审批」。审批通过后系统发放正式客户编码（CUS-xxx），客户状态转为「已审批」方可正常开展业务；驳回需填写原因，业务员可修改后重新提交。',
+      'inquiry': '新建询盘提交后进入三级审批流程（运营总监→技术总监→总经理），审批通过后方可正式跟进。',
+      'shipping': '发货申请提交后进入三级审批流程，审批通过后方可安排发货。',
+      'dealer': '经销商准入申请提交后进入三级审批，审批通过后方可正式合作。',
+      'aftersales': '工单创建后进入三级审批，审批通过后方可安排处理。'
+    };
+    var labelMap = {'customer':'客户','inquiry':'询盘','shipping':'发货','dealer':'经销商','aftersales':'工单'};
+    var descEl = document.querySelector('#approval-list-wrap .bg-blue-50\\/60 p');
+    if (descEl) descEl.innerHTML = '<strong>📌 ' + (labelMap[mod] || '') + '审批规则：</strong>' + descMap[mod];
+    if (mod === 'customer') loadCustomerApprovals();
+    else if (mod === 'inquiry') loadInquiryApprovals();
+    else if (mod === 'shipping') loadShippingApprovals();
+    else if (mod === 'dealer') loadDealerApprovals();
+    else if (mod === 'aftersales') loadAftersalesApprovals();
+  }
+
+  // ========== 通用审批状态徽章 ==========
+  function approvalStatusBadge(status) {
+    var map = {
+      'pending_ops': '<span class="badge badge-yellow">待运营总监审批<br><span class="text-[11px]">Menunggu Direktur Operasi</span></span>',
+      'pending_tech': '<span class="badge badge-blue">待技术总监审批<br><span class="text-[11px]">Menunggu Direktur Teknik</span></span>',
+      'pending_gm': '<span class="badge badge-green">待总经理审批<br><span class="text-[11px]">Menunggu Direktur Utama</span></span>',
+      'approved': '<span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span>',
+      'rejected': '<span class="badge badge-red">已驳回<br><span class="text-[11px]">Ditolak</span></span>'
+    };
+    return map[status] || '<span class="badge badge-gray">' + (status || '未知') + '</span>';
+  }
+
+  // ========== 询盘审批 ==========
+  async function loadInquiryApprovals() {
+    var listEl = document.getElementById('approval-inquiry-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
+    var res = await apiCall('GET', '/inquiries?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm');
+    if (!res || !res.success) { listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>'; return; }
+    var data = res.data || [];
+    if (data.length === 0) { listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批询盘 / Tidak ada permintaan yang menunggu persetujuan</div>'; return; }
+    renderGenericApprovals(data, listEl, 'inquiry', {
+      titleField: 'company_name', subtitleField: 'inquiry_no', extraFields: ['contact_person','phone','product_description','urgency','channel']
+    });
+  }
+
+  // ========== 发货审批 ==========
+  async function loadShippingApprovals() {
+    var listEl = document.getElementById('approval-shipping-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
+    var res = await apiCall('GET', '/logistics?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm');
+    if (!res || !res.success) { listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>'; return; }
+    var data = res.data || [];
+    if (data.length === 0) { listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批发货 / Tidak ada pengiriman yang menunggu persetujuan</div>'; return; }
+    renderGenericApprovals(data, listEl, 'shipping', {
+      titleField: 'logistics_no', subtitleField: 'carrier', extraFields: ['tracking_no','origin','destination','estimated_arrival','notes']
+    });
+  }
+
+  // ========== 经销商审批 ==========
+  async function loadDealerApprovals() {
+    var listEl = document.getElementById('approval-dealer-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
+    var res = await apiCall('GET', '/dealers?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm');
+    if (!res || !res.success) { listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>'; return; }
+    var data = res.data || [];
+    if (data.length === 0) { listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批经销商申请 / Tidak ada permohonan dealer yang menunggu persetujuan</div>'; return; }
+    renderGenericApprovals(data, listEl, 'dealer', {
+      titleField: 'dealer_name', subtitleField: 'application_no', extraFields: ['contact_person','phone','email','address','business_scope','annual_revenue']
+    });
+  }
+
+  // ========== 售后工单审批 ==========
+  async function loadAftersalesApprovals() {
+    var listEl = document.getElementById('approval-aftersales-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
+    var res = await apiCall('GET', '/aftersales?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm');
+    if (!res || !res.success) { listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>'; return; }
+    var data = res.data || [];
+    if (data.length === 0) { listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批工单 / Tidak ada tiket yang menunggu persetujuan</div>'; return; }
+    renderGenericApprovals(data, listEl, 'aftersales', {
+      titleField: 'ticket_no', subtitleField: 'issue_type', extraFields: ['priority','description','assigned_to']
+    });
+  }
+
+  // ========== 通用审批渲染 ==========
+  function renderGenericApprovals(data, listEl, moduleType, cfg) {
+    var roleMap = { 'operations_director':'运营总监', 'tech_director':'技术总监', 'general_manager':'总经理' };
+    var levelMap = { 'pending_ops':'运营总监审批中', 'pending_tech':'技术总监审批中', 'pending_gm':'总经理审批中' };
+    var levelColorMap = { 'pending_ops':'badge-yellow', 'pending_tech':'badge-blue', 'pending_gm':'badge-green' };
+    var myRole = currentUser ? currentUser.role : '';
+    var levelRoleMap = { 'pending_ops':'operations_director', 'pending_tech':'tech_director', 'pending_gm':'general_manager' };
+    var html = '';
+    for (var i = 0; i < data.length; i++) {
+      var item = data[i];
+      var aStatus = item.approval_status || 'pending_ops';
+      var isMyTurn = (levelRoleMap[aStatus] === myRole);
+      var detailParts = [];
+      var allFields = (cfg.extraFields || []);
+      var fieldLabels = {
+        'contact_person':'联系人', 'phone':'电话', 'email':'邮箱', 'address':'地址',
+        'product_description':'产品需求', 'urgency':'紧急程度', 'channel':'渠道',
+        'tracking_no':'物流单号', 'origin':'出发地', 'destination':'目的地',
+        'estimated_arrival':'预计到达', 'notes':'备注', 'business_scope':'经营范围',
+        'annual_revenue':'年营收', 'carrier':'承运商', 'priority':'优先级',
+        'description':'描述', 'assigned_to':'处理人', 'issue_type':'问题类型',
+        'company_name':'公司', 'inquiry_no':'询盘号', 'logistics_no':'物流号',
+        'dealer_name':'经销商', 'application_no':'申请号', 'ticket_no':'工单号'
+      };
+      for (var j = 0; j < allFields.length; j++) {
+        var f = allFields[j];
+        var val = item[f];
+        if (val !== undefined && val !== null && val !== '') {
+          detailParts.push('<span class="text-gray-500">' + (fieldLabels[f] || f) + '：</span>' + val);
+        }
+      }
+      var levelBadge = '<span class="badge ' + (levelColorMap[aStatus] || 'badge-yellow') + '">' + (levelMap[aStatus] || aStatus) + '<br><span class="text-[11px]">Menunggu ' + (roleMap[levelRoleMap[aStatus]] || '') + '</span></span>';
+      var inputSection = '';
+      if (isMyTurn) {
+        inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
+          + '<div class="mb-3">'
+          +   '<label class="text-xs font-medium text-gray-600 mb-1 block">审批意见 <span class="text-gray-400 font-normal">/ Catatan（驳回时必填）</span></label>'
+          +   '<textarea id="approval-remark-' + moduleType + '-' + item.id + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" placeholder="输入审批意见... / Masukkan pendapat persetujuan..."></textarea>'
+          + '</div></div>';
+      } else {
+        inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
+          + '<div class="text-sm text-gray-400 py-2">⏳ 等待 ' + (roleMap[levelRoleMap[aStatus]] || '') + ' 审批</div>'
+          + '<textarea id="approval-remark-' + moduleType + '-' + item.id + '" style="display:none;"></textarea>'
+          + '</div>';
+      }
+      var actionButtons = '';
+      if (isMyTurn) {
+        actionButtons = '<div class="flex gap-2">'
+          + '<button class="btn-success" onclick="handleGenericApproval(\'' + moduleType + '\',' + item.id + ',\'approve\')">✅ 审批通过<br><span class="text-[11px]">Setuju</span></button>'
+          + '<button class="btn-danger" onclick="handleGenericApproval(\'' + moduleType + '\',' + item.id + ',\'reject\')">❌ 驳回<br><span class="text-[11px] text-gray-400">Tolak</span></button>'
+          + '</div>';
+      } else {
+        actionButtons = '<div class="text-xs text-gray-400 py-1">当前不在您的审批环节 / Bukan giliran Anda</div>';
+      }
+      var title = item[cfg.titleField] || ('#' + item.id);
+      var subtitle = item[cfg.subtitleField] || '';
+      html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">'
+        + '<div class="flex items-center justify-between mb-3">'
+        +   '<div class="flex items-center gap-2">'
+        +     levelBadge
+        +     '<span class="text-sm font-medium text-gray-800">' + title + '</span>'
+        +     (subtitle ? '<span class="text-xs text-gray-400 font-mono">' + subtitle + '</span>' : '')
+        +   '</div>'
+        +   '<span class="text-xs text-gray-400 font-mono">#' + item.id + '</span>'
+        + '</div>'
+        + (detailParts.length > 0 ? '<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-gray-700 mb-4">' + detailParts.map(function(p){ return '<div>' + p + '</div>'; }).join('') + '</div>' : '')
+        + inputSection
+        + actionButtons
+        + '</div>';
+    }
+    listEl.innerHTML = html;
+  }
+
+  // ========== 通用审批处理 ==========
+  async function handleGenericApproval(moduleType, id, action) {
+    var remarkEl = document.getElementById('approval-remark-' + moduleType + '-' + id);
+    var remark = remarkEl ? remarkEl.value.trim() : '';
+    if (action === 'reject' && !remark) { alert('驳回时必须填写审批意见'); if (remarkEl) remarkEl.focus(); return; }
+    var apiMap = { 'inquiry':'inquiries', 'shipping':'logistics', 'dealer':'dealers', 'aftersales':'aftersales' };
+    var apiPath = apiMap[moduleType];
+    var nameMap = { 'inquiry':'询盘', 'shipping':'发货', 'dealer':'经销商申请', 'aftersales':'工单' };
+    var submitApproval = async function(signature) {
+      try {
+        var payload = { comment: remark };
+        if (action === 'approve') payload.signature = signature;
+        var resp = await fetch(API_BASE + '/' + apiPath + '/' + id + '/' + action, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: 'Bearer ' + authToken } : {}) },
+          body: JSON.stringify(payload)
+        });
+        var j = await resp.json();
+        if (j.success) {
+          alert(j.message || (action === 'approve' ? '已审批通过' : '已驳回'));
+          if (moduleType === 'inquiry') loadInquiryApprovals();
+          else if (moduleType === 'shipping') loadShippingApprovals();
+          else if (moduleType === 'dealer') loadDealerApprovals();
+          else if (moduleType === 'aftersales') loadAftersalesApprovals();
+        } else {
+          alert(j.error || '操作失败');
+        }
+      } catch (e) { alert('网络错误：' + e.message); }
+    };
+    if (action === 'approve') { openSignaturePad(submitApproval); }
+    else if (window.confirm('确认驳回该' + (nameMap[moduleType] || '') + '？')) { submitApproval(); }
+  }
+
   async function deleteCustomer(id, name) {
     await adminDeleteRecord('customers', id, '客户「' + name + '」', function () {
       _customerListCache = null;
@@ -773,7 +1009,11 @@ tailwind.config = {
     var gradeLabel = {'A':'A级','B':'B级','C':'C级','D':'D级'};
     var statusBadge = function(s) {
       if (s === 'approved') return '<span class="badge badge-green">已批准<br><span class="text-[11px]">Disetujui</span></span>';
+      if (s === 'pending_ops') return '<span class="badge badge-yellow">待运营总监审批<br><span class="text-[11px]">Menunggu Dir. Operasi</span></span>';
+      if (s === 'pending_tech') return '<span class="badge badge-orange">待技术总监审批<br><span class="text-[11px]">Menunggu Dir. Teknik</span></span>';
+      if (s === 'pending_gm') return '<span class="badge badge-blue">待总经理审批<br><span class="text-[11px]">Menunggu Dir. Umum</span></span>';
       if (s === 'pending') return '<span class="badge badge-yellow">待审批<br><span class="text-[11px]">Menunggu</span></span>';
+      if (s === 'rejected') return '<span class="badge badge-red">已驳回<br><span class="text-[11px]">Ditolak</span></span>';
       if (s === 'draft') return '<span class="badge badge-gray">草稿<br><span class="text-[11px]">Draft</span></span>';
       return '<span class="badge badge-gray">' + (s || '-') + '</span>';
     };
@@ -816,7 +1056,11 @@ tailwind.config = {
     var gradeLabel = {A:'A级',B:'B级',C:'C级',D:'D级'};
     var statusBadge = function(s) {
       if (s === 'approved') return '<span class="badge badge-green">已批准<br><span class="text-[11px]">Disetujui</span></span>';
+      if (s === 'pending_ops') return '<span class="badge badge-yellow">待运营总监审批<br><span class="text-[11px]">Menunggu Dir. Operasi</span></span>';
+      if (s === 'pending_tech') return '<span class="badge badge-orange">待技术总监审批<br><span class="text-[11px]">Menunggu Dir. Teknik</span></span>';
+      if (s === 'pending_gm') return '<span class="badge badge-blue">待总经理审批<br><span class="text-[11px]">Menunggu Dir. Umum</span></span>';
       if (s === 'pending') return '<span class="badge badge-yellow">待审批<br><span class="text-[11px]">Menunggu</span></span>';
+      if (s === 'rejected') return '<span class="badge badge-red">已驳回<br><span class="text-[11px]">Ditolak</span></span>';
       if (s === 'draft') return '<span class="badge badge-gray">草稿<br><span class="text-[11px]">Draft</span></span>';
       return '<span class="badge badge-gray">' + (s || '-') + '</span>';
     };
@@ -912,7 +1156,7 @@ function filterDealerList() {
   var tbody = document.getElementById('dealer-table-body');
   if (!tbody) return;
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af;">暂无匹配数据 / Tidak ada data yang cocok</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#9ca3af;">暂无匹配数据 / Tidak ada data yang cocok</td></tr>';
     var pag = document.querySelector('#page-dealer-list .text-gray-500');
     if (pag) pag.textContent = '显示 0 条';
     return;
@@ -928,7 +1172,7 @@ function filterDealerList() {
     for (var k2 in statusMap) { if ((r.status || '').indexOf(k2) > -1) { s = statusMap[k2]; break; } }
     if (!s) s = r.status || '';
     var gmBadge = r.created_by_role === 'general_manager' ? ' <span class="text-[12px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
-    html += '<tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (r.code||'') + '</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (r.name||'') + gmBadge + '</td><td class="px-5 py-3.5 text-sm text-gray-700">' + (r.region||'') + '</td><td class="px-5 py-3.5">' + g + '</td><td class="px-5 py-3.5 text-sm text-gray-500">' + (r.date||'') + '</td><td class="px-5 py-3.5">' + s + '</td><td class="px-5 py-3.5 text-sm text-gray-700">' + (r.manager||'') + '</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>';
+    html += '<tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + (r.code||'') + '</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">' + (r.name||'') + gmBadge + '</td><td class="px-5 py-3.5 text-sm text-gray-700">' + (r.region||'') + '</td><td class="px-5 py-3.5">' + g + '</td><td class="px-5 py-3.5 text-sm text-gray-500">' + (r.date||'') + '</td><td class="px-5 py-3.5">' + s + '</td><td class="px-5 py-3.5">' + approvalStatusBadge(r.approval_status || 'approved') + '</td><td class="px-5 py-3.5 text-sm text-gray-700">' + (r.manager||'') + '</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>';
   });
   tbody.innerHTML = html;
   var pag = document.querySelector('#page-dealer-list .text-gray-500');
@@ -1134,7 +1378,7 @@ function filterAftersalesList() {
   var tbody = document.getElementById('aftersales-table-body');
   if (!tbody) return;
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#9ca3af;">暂无匹配数据 / Tidak ada data yang cocok</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af;">暂无匹配数据 / Tidak ada data yang cocok</td></tr>';
     var pag = document.querySelector('#page-aftersales-list .text-gray-500');
     if (pag) pag.textContent = '显示 0 条';
     return;
@@ -1157,6 +1401,7 @@ function filterAftersalesList() {
       '<td class="px-5 py-3.5"><span class="badge ' + sCls + '">' + (r.status||'') + '</span></td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-500">' + (r.created||'') + '</td>' +
       '<td class="px-5 py-3.5 text-sm font-mono ' + (isSlaRed ? 'text-red-600 font-medium' : (r.sla||'').indexOf('正常')>-1?'text-green-600':'text-gray-400') + '">' + (r.sla||'') + '</td>' +
+      '<td class="px-5 py-3.5">' + approvalStatusBadge(r.approval_status || 'approved') + '</td>' +
       '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">' + (r.action||'查看') + '</button></td></tr>';
   });
   tbody.innerHTML = html;
@@ -1182,7 +1427,7 @@ function filterInquiryList() {
   var tbody = document.getElementById('inquiry-table-body');
   if (!tbody) return;
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#9ca3af;">暂无匹配数据 / Tidak ada data yang cocok</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af;">暂无匹配数据 / Tidak ada data yang cocok</td></tr>';
     var pag = document.getElementById('inquiry-pagination');
     if (pag) pag.textContent = '显示 0 条';
     return;
@@ -1207,6 +1452,7 @@ function filterInquiryList() {
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + (item.product_description || '').substring(0, 30) + '</td>' +
       '<td class="px-5 py-3.5 text-sm font-medium">' + (item.budget_range || '-') + '</td>' +
       '<td class="px-5 py-3.5"><span class="badge ' + st.cls + '">' + st.zh + '</span></td>' +
+      '<td class="px-5 py-3.5">' + approvalStatusBadge(item.approval_status) + '</td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + (item.assigned_to || '-') + '</td>' +
       '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="viewInquiry(' + item.id + ')">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>';
   });
@@ -2199,13 +2445,22 @@ function filterOutboundList() {
 
 <!-- ===== APPROVAL PENDING ===== -->
 <div id="page-approval-pending" class="page fade-in">
-  <h3 class="text-lg font-semibold text-gray-800 mb-2">待我审批 <span class="text-xs text-gray-400 font-normal">/ Menunggu Persetujuan Saya</span></h3>
-  <p class="text-sm text-gray-500 mb-6">当前登录角色：<span class="font-medium text-brand-600" id="approval-current-role">—</span> · 审批通过后系统自动为客户发放正式客户编码</p>
+  <h3 class="text-lg font-semibold text-gray-800 mb-2">审批中心 <span class="text-xs text-gray-400 font-normal">/ Pusat Persetujuan</span></h3>
+  <p class="text-sm text-gray-500 mb-6">当前登录角色：<span class="font-medium text-brand-600" id="approval-current-role">—</span> · 各模块三级审批（运营总监→技术总监→总经理），审批通过后自动流转下一环节</p>
 
   <!-- 无权限提示 -->
   <div id="approval-no-permission" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
     <p class="text-sm text-amber-700">🔒 当前角色无客户审批权限</p>
     <p class="text-xs text-amber-600 mt-1">请切换到<strong>运营总监 / 技术总监 / 总经理</strong>账户进行审批</p>
+  </div>
+
+  <!-- 模块切换标签 -->
+  <div class="flex gap-2 mb-4 flex-wrap" id="approval-module-tabs">
+    <button class="px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white" onclick="switchApprovalModule('customer')">客户 / Pelanggan</button>
+    <button class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200" onclick="switchApprovalModule('inquiry')">询盘 / Permintaan</button>
+    <button class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200" onclick="switchApprovalModule('shipping')">发货 / Pengiriman</button>
+    <button class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200" onclick="switchApprovalModule('dealer')">经销商 / Dealer</button>
+    <button class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200" onclick="switchApprovalModule('aftersales')">工单 / Tiket</button>
   </div>
 
   <!-- 客户审批列表容器 -->
@@ -2215,6 +2470,15 @@ function filterOutboundList() {
     </div>
     <div id="approval-customer-list" class="space-y-4"></div>
   </div>
+
+  <!-- 询盘审批列表容器 -->
+  <div id="approval-inquiry-list" class="space-y-4 hidden"></div>
+  <!-- 发货审批列表容器 -->
+  <div id="approval-shipping-list" class="space-y-4 hidden"></div>
+  <!-- 经销商审批列表容器 -->
+  <div id="approval-dealer-list" class="space-y-4 hidden"></div>
+  <!-- 工单审批列表容器 -->
+  <div id="approval-aftersales-list" class="space-y-4 hidden"></div>
 
 </div>
 
@@ -2316,7 +2580,7 @@ function filterOutboundList() {
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2"><h3 class="text-lg font-semibold text-gray-800">采购申请列表</h3><button class="btn-primary" onclick="navigateTo('purchase-new')">+ 新建采购申请<br><span class="text-[11px] text-gray-400">+ Tambah Permohonan Pembelian</span></button></div>
   <p class="text-sm text-gray-500 mb-5">采购申请分两阶段：📋 预采购申请（预估价，待询价）→ 📄 正式采购申请（确定价格，审批后生成PO）</p>
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-    <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3"><input type="text" id="purchase-search" placeholder="搜索申请单号/品类... / Cari no. permohonan/kategori..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterPurchases()"><select id="purchase-status-filter" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterPurchases()"><option value="">全部状态 / Semua Status</option><option value="pending">待审批 / Menunggu Persetujuan</option><option value="quoted">已询价 / Sudah Ditawarkan</option><option value="approved">已审批 / Sudah Disetujui</option><option value="completed">已完成 / Selesai</option></select></div>
+    <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3"><input type="text" id="purchase-search" placeholder="搜索申请单号/品类... / Cari no. permohonan/kategori..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterPurchases()"><select id="purchase-status-filter" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterPurchases()"><option value="">全部状态 / Semua Status</option><option value="pending_ops">待运营总监审批 / Menunggu Dir. Operasi</option><option value="pending_tech">待技术总监审批 / Menunggu Dir. Teknik</option><option value="pending_gm">待总经理审批 / Menunggu Dir. Umum</option><option value="quoted">已询价 / Sudah Ditawarkan</option><option value="approved">已审批 / Sudah Disetujui</option><option value="rejected">已驳回 / Ditolak</option><option value="completed">已完成 / Selesai</option></select></div>
     <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">申请单号<br><span class="text-[12px] text-gray-400">No. Permohonan</span></th><th class="px-5 py-3">类型<br><span class="text-[12px] text-gray-400">Jenis</span></th><th class="px-5 py-3">品类<br><span class="text-[12px] text-gray-400">Kategori</span></th><th class="px-5 py-3">申请人<br><span class="text-[12px] text-gray-400">Pemohon</span></th><th class="px-5 py-3">申请日期<br><span class="text-[12px] text-gray-400">Tanggal Permohonan</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="purchase-table-body" class="divide-y divide-gray-50">
     </tbody></table></div>
     <div id="purchase-pagination" class="px-5 py-3 text-xs text-gray-500"></div>
@@ -2712,11 +2976,11 @@ function filterOutboundList() {
     <button class="px-3 py-1.5 text-xs rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">运输中<br><span class="text-[11px] text-gray-400">Dalam Pengiriman</span></button>
     <button class="px-3 py-1.5 text-xs rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">已签收<br><span class="text-[11px] text-gray-400">Sudah Diterima</span></button>
   </div>
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">发货单号<br><span class="text-[12px] text-gray-400">No. Pengiriman</span></th><th class="px-5 py-3">关联订单<br><span class="text-[12px] text-gray-400">Pesanan Terkait</span></th><th class="px-5 py-3">客户<br><span class="text-[12px] text-gray-400">Pelanggan</span></th><th class="px-5 py-3">发货日期<br><span class="text-[12px] text-gray-400">Tanggal Kirim</span></th><th class="px-5 py-3">承运商<br><span class="text-[12px] text-gray-400">Kurir</span></th><th class="px-5 py-3">物流状态<br><span class="text-[12px] text-gray-400">Status Logistik</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody class="divide-y divide-gray-50">
-    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">SHP-2025-045</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-001</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Surya Energi</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15</td><td class="px-5 py-3.5 text-sm text-gray-500">PT JNE Express</td><td class="px-5 py-3.5"><span class="badge badge-blue">运输中</span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo('logistics-tracking')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td></tr>
-    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">SHP-2025-044</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-002</td><td class="px-5 py-3.5 text-sm text-gray-700">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-10</td><td class="px-5 py-3.5 text-sm text-gray-500">PT SiCepat</td><td class="px-5 py-3.5"><span class="badge badge-green">已签收</span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo('logistics-tracking')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td></tr>
-    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">SHP-2025-043</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-003</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Mega Solar Indonesia</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-05</td><td class="px-5 py-3.5 text-sm text-gray-500">-</td><td class="px-5 py-3.5"><span class="badge badge-yellow">待发货</span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo('logistics-tracking')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td></tr>
-    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">SHP-2025-042</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-002</td><td class="px-5 py-3.5 text-sm text-gray-700">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-05-28</td><td class="px-5 py-3.5 text-sm text-gray-500">PT SiCepat</td><td class="px-5 py-3.5"><span class="badge badge-green">已签收</span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo('logistics-tracking')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td></tr>
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">发货单号<br><span class="text-[12px] text-gray-400">No. Pengiriman</span></th><th class="px-5 py-3">关联订单<br><span class="text-[12px] text-gray-400">Pesanan Terkait</span></th><th class="px-5 py-3">客户<br><span class="text-[12px] text-gray-400">Pelanggan</span></th><th class="px-5 py-3">发货日期<br><span class="text-[12px] text-gray-400">Tanggal Kirim</span></th><th class="px-5 py-3">承运商<br><span class="text-[12px] text-gray-400">Kurir</span></th><th class="px-5 py-3">物流状态<br><span class="text-[12px] text-gray-400">Status Logistik</span></th><th class="px-5 py-3">审批状态<br><span class="text-[12px] text-gray-400">Status Persetujuan</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody class="divide-y divide-gray-50">
+    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">SHP-2025-045</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-001</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Surya Energi</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15</td><td class="px-5 py-3.5 text-sm text-gray-500">PT JNE Express</td><td class="px-5 py-3.5"><span class="badge badge-blue">运输中</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo('logistics-tracking')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td></tr>
+    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">SHP-2025-044</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-002</td><td class="px-5 py-3.5 text-sm text-gray-700">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-10</td><td class="px-5 py-3.5 text-sm text-gray-500">PT SiCepat</td><td class="px-5 py-3.5"><span class="badge badge-green">已签收</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo('logistics-tracking')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td></tr>
+    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">SHP-2025-043</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-003</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Mega Solar Indonesia</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-05</td><td class="px-5 py-3.5 text-sm text-gray-500">-</td><td class="px-5 py-3.5"><span class="badge badge-yellow">待发货</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo('logistics-tracking')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td></tr>
+    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">SHP-2025-042</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-002</td><td class="px-5 py-3.5 text-sm text-gray-700">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-05-28</td><td class="px-5 py-3.5 text-sm text-gray-500">PT SiCepat</td><td class="px-5 py-3.5"><span class="badge badge-green">已签收</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo('logistics-tracking')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td></tr>
   </tbody></table></div></div>
 </div>
 
@@ -3699,7 +3963,7 @@ function filterOutboundList() {
       <select id="inquiry-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterInquiryList()"><option value="">全部状态 / Semua Status</option><option value="new">待跟进 / Menunggu Tindak Lanjut</option><option value="following">跟进中 / Sedang Ditindaklanjuti</option><option value="quoted">已报价 / Sudah Ditawarkan</option><option value="won">已成交 / Sudah Transaksi</option><option value="closed">已关闭 / Sudah Ditutup</option></select>
       <select id="inquiry-filter-source" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterInquiryList()"><option value="">全部来源 / Semua Sumber</option><option>线上 / Online</option><option>展会 / Pameran</option><option>转介绍 / Rujukan</option><option>政府/机构 / Pemerintah/Institusi</option><option>经销商 / Distributor</option><option>线下 / Offline</option></select>
     </div>
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">LT编号<br><span class="text-[12px] text-gray-400">No. LT</span></th><th class="px-5 py-3">询盘日期<br><span class="text-[12px] text-gray-400">Tanggal Permintaan</span></th><th class="px-5 py-3">客户名称<br><span class="text-[12px] text-gray-400">Nama Pelanggan</span></th><th class="px-5 py-3">来源渠道<br><span class="text-[12px] text-gray-400">Saluran Sumber</span></th><th class="px-5 py-3">询盘产品<br><span class="text-[12px] text-gray-400">Produk</span></th><th class="px-5 py-3">预估金额<br><span class="text-[12px] text-gray-400">Estimasi Jumlah</span></th><th class="px-5 py-3">跟进状态<br><span class="text-[12px] text-gray-400">Status Tindak Lanjut</span></th><th class="px-5 py-3">负责人<br><span class="text-[12px] text-gray-400">Penanggung Jawab</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="inquiry-table-body" class="divide-y divide-gray-50">
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">LT编号<br><span class="text-[12px] text-gray-400">No. LT</span></th><th class="px-5 py-3">询盘日期<br><span class="text-[12px] text-gray-400">Tanggal Permintaan</span></th><th class="px-5 py-3">客户名称<br><span class="text-[12px] text-gray-400">Nama Pelanggan</span></th><th class="px-5 py-3">来源渠道<br><span class="text-[12px] text-gray-400">Saluran Sumber</span></th><th class="px-5 py-3">询盘产品<br><span class="text-[12px] text-gray-400">Produk</span></th><th class="px-5 py-3">预估金额<br><span class="text-[12px] text-gray-400">Estimasi Jumlah</span></th><th class="px-5 py-3">跟进状态<br><span class="text-[12px] text-gray-400">Status Tindak Lanjut</span></th><th class="px-5 py-3">审批状态<br><span class="text-[12px] text-gray-400">Status Persetujuan</span></th><th class="px-5 py-3">负责人<br><span class="text-[12px] text-gray-400">Penanggung Jawab</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="inquiry-table-body" class="divide-y divide-gray-50">
     </tbody></table></div>
     <div class="p-4 border-t border-gray-100 text-sm text-gray-500" id="inquiry-pagination">显示 0 条</div>
   </div>
@@ -3966,11 +4230,11 @@ function filterOutboundList() {
       <input type="text" id="dealer-filter-search" placeholder="搜索经销商名称/编码... / Cari nama/kode dealer..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterDealerList()">
       <select id="dealer-filter-grade" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterDealerList()"><option value="">全部等级 / Semua Level</option><option value="金牌">金牌 / Emas</option><option value="银牌">银牌 / Perak</option><option value="铜牌">铜牌 / Perunggu</option><option value="待评估">待评估 / Menunggu Evaluasi</option></select>
     </div>
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">经销商编码<br><span class="text-[12px] text-gray-400">Kode Dealer</span></th><th class="px-5 py-3">名称<br><span class="text-[12px] text-gray-400">Nama</span></th><th class="px-5 py-3">区域<br><span class="text-[12px] text-gray-400">Wilayah</span></th><th class="px-5 py-3">等级<br><span class="text-[12px] text-gray-400">Level</span></th><th class="px-5 py-3">合作起始日期<br><span class="text-[12px] text-gray-400">Tanggal Mulai Kerjasama</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">负责人<br><span class="text-[12px] text-gray-400">Penanggung Jawab</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="dealer-table-body" class="divide-y divide-gray-50">
-      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">DLR-001</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Energi Jaya Abadi</td><td class="px-5 py-3.5 text-sm text-gray-700">Jawa Timur</td><td class="px-5 py-3.5"><span class="badge badge-yellow">🥇 金牌</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2023-03-15</td><td class="px-5 py-3.5"><span class="badge badge-green">活跃<br><span class="text-[11px]">Aktif</span></span></td><td class="px-5 py-3.5 text-sm text-gray-700">Budi Santoso</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>
-      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">DLR-002</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">CV Sinar Baterai</td><td class="px-5 py-3.5 text-sm text-gray-700">Jawa Barat</td><td class="px-5 py-3.5"><span class="badge badge-gray">🥈 银牌</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2024-01-10</td><td class="px-5 py-3.5"><span class="badge badge-green">活跃<br><span class="text-[11px]">Aktif</span></span></td><td class="px-5 py-3.5 text-sm text-gray-700">Siti Rahayu</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>
-      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">DLR-003</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Nusantara Energi Sejahtera</td><td class="px-5 py-3.5 text-sm text-gray-700">Sumatera Utara</td><td class="px-5 py-3.5"><span class="badge badge-yellow">🥉 铜牌</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2024-06-20</td><td class="px-5 py-3.5"><span class="badge badge-green">活跃<br><span class="text-[11px]">Aktif</span></span></td><td class="px-5 py-3.5 text-sm text-gray-700">Budi Santoso</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>
-      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">DLR-004</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">UD Power Solution</td><td class="px-5 py-3.5 text-sm text-gray-700">Sulawesi</td><td class="px-5 py-3.5"><span class="badge badge-blue">待评估</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-05-01</td><td class="px-5 py-3.5"><span class="badge badge-yellow">试用期</span></td><td class="px-5 py-3.5 text-sm text-gray-700">Siti Rahayu</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">经销商编码<br><span class="text-[12px] text-gray-400">Kode Dealer</span></th><th class="px-5 py-3">名称<br><span class="text-[12px] text-gray-400">Nama</span></th><th class="px-5 py-3">区域<br><span class="text-[12px] text-gray-400">Wilayah</span></th><th class="px-5 py-3">等级<br><span class="text-[12px] text-gray-400">Level</span></th><th class="px-5 py-3">合作起始日期<br><span class="text-[12px] text-gray-400">Tanggal Mulai Kerjasama</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">审批状态<br><span class="text-[12px] text-gray-400">Status Persetujuan</span></th><th class="px-5 py-3">负责人<br><span class="text-[12px] text-gray-400">Penanggung Jawab</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="dealer-table-body" class="divide-y divide-gray-50">
+      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">DLR-001</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Energi Jaya Abadi</td><td class="px-5 py-3.5 text-sm text-gray-700">Jawa Timur</td><td class="px-5 py-3.5"><span class="badge badge-yellow">🥇 金牌</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2023-03-15</td><td class="px-5 py-3.5"><span class="badge badge-green">活跃<br><span class="text-[11px]">Aktif</span></span></td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5 text-sm text-gray-700">Budi Santoso</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>
+      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">DLR-002</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">CV Sinar Baterai</td><td class="px-5 py-3.5 text-sm text-gray-700">Jawa Barat</td><td class="px-5 py-3.5"><span class="badge badge-gray">🥈 银牌</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2024-01-10</td><td class="px-5 py-3.5"><span class="badge badge-green">活跃<br><span class="text-[11px]">Aktif</span></span></td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5 text-sm text-gray-700">Siti Rahayu</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>
+      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">DLR-003</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Nusantara Energi Sejahtera</td><td class="px-5 py-3.5 text-sm text-gray-700">Sumatera Utara</td><td class="px-5 py-3.5"><span class="badge badge-yellow">🥉 铜牌</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2024-06-20</td><td class="px-5 py-3.5"><span class="badge badge-green">活跃<br><span class="text-[11px]">Aktif</span></span></td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5 text-sm text-gray-700">Budi Santoso</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>
+      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">DLR-004</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">UD Power Solution</td><td class="px-5 py-3.5 text-sm text-gray-700">Sulawesi</td><td class="px-5 py-3.5"><span class="badge badge-blue">待评估</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-05-01</td><td class="px-5 py-3.5"><span class="badge badge-yellow">试用期</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5 text-sm text-gray-700">Siti Rahayu</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td></tr>
     </tbody></table></div>
     <div class="p-4 border-t border-gray-100 text-sm text-gray-500">显示 1-4 共 4 条</div>
   </div>
@@ -4289,11 +4553,11 @@ function filterOutboundList() {
       <select id="aftersales-filter-priority" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterAftersalesList()"><option value="">全部优先级 / Semua Prioritas</option><option value="P1">P1 紧急 / P1 Darurat</option><option value="P2">P2 严重 / P2 Serius</option><option value="P3">P3 一般 / P3 Normal</option><option value="P4">P4 咨询 / P4 Konsultasi</option></select>
       <select id="aftersales-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterAftersalesList()"><option value="">全部状态 / Semua Status</option><option value="待受理">待受理 / Menunggu Diproses</option><option value="处理中">处理中 / Sedang Diproses</option><option value="待验收">待验收 / Menunggu Verifikasi</option><option value="已关闭">已关闭 / Sudah Ditutup</option></select>
     </div>
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">工单编号<br><span class="text-[12px] text-gray-400">No. Tiket</span></th><th class="px-5 py-3">关联订单<br><span class="text-[12px] text-gray-400">Pesanan Terkait</span></th><th class="px-5 py-3">客户名称<br><span class="text-[12px] text-gray-400">Nama Pelanggan</span></th><th class="px-5 py-3">问题类型<br><span class="text-[12px] text-gray-400">Jenis Masalah</span></th><th class="px-5 py-3">优先级<br><span class="text-[12px] text-gray-400">Prioritas</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">创建时间<br><span class="text-[12px] text-gray-400">Dibuat</span></th><th class="px-5 py-3">SLA倒计时<br><span class="text-[12px] text-gray-400">Hitung Mundur SLA</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="aftersales-table-body" class="divide-y divide-gray-50">
-      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">TK-2025-018</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-001</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Surya Energi</td><td class="px-5 py-3.5 text-sm text-gray-700">设备故障</td><td class="px-5 py-3.5"><span class="badge badge-red">P1 紧急</span></td><td class="px-5 py-3.5"><span class="badge badge-blue">处理中</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15 09:30</td><td class="px-5 py-3.5 text-sm font-mono text-red-600 font-medium">01:23:45</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">处理<br><span class="text-[11px] text-gray-400">Proses</span></button></td></tr>
-      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">TK-2025-017</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-002</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm text-gray-700">性能下降</td><td class="px-5 py-3.5"><span class="badge badge-yellow">P2 严重</span></td><td class="px-5 py-3.5"><span class="badge badge-yellow">待受理</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15 11:00</td><td class="px-5 py-3.5 text-sm font-mono text-yellow-600 font-medium">02:30:00</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">受理<br><span class="text-[11px] text-gray-400">Terima</span></button></td></tr>
-      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">TK-2025-016</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-003</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Mega Solar Indonesia</td><td class="px-5 py-3.5 text-sm text-gray-700">安装问题</td><td class="px-5 py-3.5"><span class="badge badge-blue">P3 一般</span></td><td class="px-5 py-3.5"><span class="badge badge-green">待验收</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-13 14:20</td><td class="px-5 py-3.5 text-sm font-mono text-green-600">正常</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">验收<br><span class="text-[11px] text-gray-400">Verifikasi</span></button></td></tr>
-      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">TK-2025-015</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">—</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Indo Battery Solution</td><td class="px-5 py-3.5 text-sm text-gray-700">咨询</td><td class="px-5 py-3.5"><span class="badge badge-gray">P4 咨询</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已关闭</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-12 10:00</td><td class="px-5 py-3.5 text-sm text-gray-400">已完成</td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">查看<br><span class="text-[11px] text-gray-400">Lihat</span></button></td></tr>
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">工单编号<br><span class="text-[12px] text-gray-400">No. Tiket</span></th><th class="px-5 py-3">关联订单<br><span class="text-[12px] text-gray-400">Pesanan Terkait</span></th><th class="px-5 py-3">客户名称<br><span class="text-[12px] text-gray-400">Nama Pelanggan</span></th><th class="px-5 py-3">问题类型<br><span class="text-[12px] text-gray-400">Jenis Masalah</span></th><th class="px-5 py-3">优先级<br><span class="text-[12px] text-gray-400">Prioritas</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">创建时间<br><span class="text-[12px] text-gray-400">Dibuat</span></th><th class="px-5 py-3">SLA倒计时<br><span class="text-[12px] text-gray-400">Hitung Mundur SLA</span></th><th class="px-5 py-3">审批状态<br><span class="text-[12px] text-gray-400">Status Persetujuan</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="aftersales-table-body" class="divide-y divide-gray-50">
+      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">TK-2025-018</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-001</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Surya Energi</td><td class="px-5 py-3.5 text-sm text-gray-700">设备故障</td><td class="px-5 py-3.5"><span class="badge badge-red">P1 紧急</span></td><td class="px-5 py-3.5"><span class="badge badge-blue">处理中</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15 09:30</td><td class="px-5 py-3.5 text-sm font-mono text-red-600 font-medium">01:23:45</td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">处理<br><span class="text-[11px] text-gray-400">Proses</span></button></td></tr>
+      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">TK-2025-017</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-002</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm text-gray-700">性能下降</td><td class="px-5 py-3.5"><span class="badge badge-yellow">P2 严重</span></td><td class="px-5 py-3.5"><span class="badge badge-yellow">待受理</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15 11:00</td><td class="px-5 py-3.5 text-sm font-mono text-yellow-600 font-medium">02:30:00</td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">受理<br><span class="text-[11px] text-gray-400">Terima</span></button></td></tr>
+      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">TK-2025-016</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-003</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Mega Solar Indonesia</td><td class="px-5 py-3.5 text-sm text-gray-700">安装问题</td><td class="px-5 py-3.5"><span class="badge badge-blue">P3 一般</span></td><td class="px-5 py-3.5"><span class="badge badge-green">待验收</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-13 14:20</td><td class="px-5 py-3.5 text-sm font-mono text-green-600">正常</td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">验收<br><span class="text-[11px] text-gray-400">Verifikasi</span></button></td></tr>
+      <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">TK-2025-015</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">—</td><td class="px-5 py-3.5 text-sm font-medium text-gray-900">PT Indo Battery Solution</td><td class="px-5 py-3.5 text-sm text-gray-700">咨询</td><td class="px-5 py-3.5"><span class="badge badge-gray">P4 咨询</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已关闭</span></td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-12 10:00</td><td class="px-5 py-3.5 text-sm text-gray-400">已完成</td><td class="px-5 py-3.5"><span class="badge badge-green">已审批<br><span class="text-[11px]">Disetujui</span></span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline">查看<br><span class="text-[11px] text-gray-400">Lihat</span></button></td></tr>
     </tbody></table></div>
     <div class="p-4 border-t border-gray-100 text-sm text-gray-500">显示 1-4 共 4 条</div>
   </div>
@@ -5656,7 +5920,7 @@ function navigateTo(pageId) {
       var clearBtn = document.getElementById('btn-clear-customers');
       if (clearBtn) clearBtn.classList.add('hidden');
     }
-    if (pageId === 'approval-pending') loadCustomerApprovals();
+    if (pageId === 'approval-pending') { switchApprovalModule('customer'); }
     if (pageId === 'customer-follow') { loadFollowUpList(); loadFollowUpCustomerOptions(); }
     if (pageId === 'customer-follow-new') { loadFollowUpCustomerOptions(); resetFollowUpForm(); }
     if (pageId === 'order-list') { loadOrderData(); renderOrderTable(); }
@@ -7111,7 +7375,7 @@ function renderInquiryTable() {
   tbody.innerHTML = '';
 
   if (inquiryData.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="px-5 py-8 text-center text-gray-400 text-sm">暂无询盘数据 / Belum ada data permintaan</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-8 text-center text-gray-400 text-sm">暂无询盘数据 / Belum ada data permintaan</td></tr>';
     var pag = document.getElementById('inquiry-pagination');
     if (pag) pag.textContent = '显示 0 条';
     return;
@@ -7412,9 +7676,9 @@ var purchaseData = [];
 async function loadPurchaseData() {
   var res = await apiCall('GET', '/procurement/requests');
   if (res && res.success && res.data) {
-    var statusLabels = { 'pending': '待审批', 'quoted': '已询价', 'approved': '已审批', 'completed': '已完成' };
+    var statusLabels = { 'pending': '待审批', 'pending_ops': '待运营总监审批', 'pending_tech': '待技术总监审批', 'pending_gm': '待总经理审批', 'quoted': '已询价', 'approved': '已审批', 'completed': '已完成', 'rejected': '已驳回' };
     purchaseData = res.data.map(function(p) {
-      return { rawId: p.id, id: p.request_no || ('PR-' + p.id), type: p.type || 'formal', category: p.category || '', applicant: p.requester_name || '', date: (p.created_at || '').slice(0,10), status: statusLabels[p.status] || p.status || '待审批', statusKey: p.status || 'pending' };
+      return { rawId: p.id, id: p.request_no || ('PR-' + p.id), type: p.type || 'formal', category: p.category || '', applicant: p.requester_name || '', date: (p.created_at || '').slice(0,10), status: statusLabels[p.status] || p.status || '待审批', statusKey: p.status || 'pending_ops' };
     });
   }
 }
@@ -7437,7 +7701,7 @@ function renderPurchaseTable() {
   });
   var typeLabels = { 'pre': '\ud83d\udccb \u9884\u91c7\u8d2d', 'formal': '\ud83d\udcc4 \u6b63\u5f0f\u91c7\u8d2d' };
   filtered.forEach(function(p) {
-    var statusClass = p.statusKey === 'approved' || p.statusKey === 'completed' ? 'badge-green' : (p.statusKey === 'pending' || p.statusKey === 'quoted' ? 'badge-yellow' : 'badge-gray');
+    var statusClass = p.statusKey === 'approved' || p.statusKey === 'completed' ? 'badge-green' : (p.statusKey === 'pending_ops' || p.statusKey === 'pending_tech' || p.statusKey === 'pending_gm' || p.statusKey === 'pending' || p.statusKey === 'quoted' ? 'badge-yellow' : (p.statusKey === 'rejected' ? 'badge-red' : 'badge-gray'));
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     if (p.rawId) tr.setAttribute('data-dbid', p.rawId);
@@ -7553,15 +7817,15 @@ async function loadLogisticsData() {
   var res = await apiCall('GET', '/logistics');
   if (res && res.success && res.data) {
     logisticsData = res.data.map(function(l) {
-      return { rawId: l.id, id: l.shipment_no || ('SHP-' + l.id), order: l.order_no || '', customer: l.customer_name || '', date: (l.shipped_at || l.created_at || '').slice(0,10), carrier: l.carrier || '', status: l.status || '在途' };
+      return { rawId: l.id, id: l.shipment_no || ('SHP-' + l.id), order: l.order_no || '', customer: l.customer_name || '', date: (l.shipped_at || l.created_at || '').slice(0,10), carrier: l.carrier || '', status: l.status || '在途', approval_status: l.approval_status || 'approved' };
     });
   }
   if (logisticsData.length === 0) {
     var rows = document.querySelectorAll('#page-logistics-shipment tbody tr');
     rows.forEach(function(row) {
       var cells = row.querySelectorAll('td');
-      if (cells.length >= 7) {
-        logisticsData.push({ id: cells[0] ? cells[0].textContent.trim() : '', order: cells[1] ? cells[1].textContent.trim() : '', customer: cells[2] ? cells[2].textContent.trim() : '', date: cells[3] ? cells[3].textContent.trim() : '', carrier: cells[4] ? cells[4].textContent.trim() : '', status: cells[5] ? cells[5].textContent.trim() : '' });
+      if (cells.length >= 8) {
+        logisticsData.push({ id: cells[0] ? cells[0].textContent.trim() : '', order: cells[1] ? cells[1].textContent.trim() : '', customer: cells[2] ? cells[2].textContent.trim() : '', date: cells[3] ? cells[3].textContent.trim() : '', carrier: cells[4] ? cells[4].textContent.trim() : '', status: cells[5] ? cells[5].textContent.trim() : '', approval_status: cells[6] ? cells[6].textContent.trim() : 'approved' });
       }
     });
   }
@@ -7582,6 +7846,7 @@ function renderLogisticsTable() {
       '<td class="px-5 py-3 text-sm text-gray-500">' + l.date + '</td>' +
       '<td class="px-5 py-3 text-sm">' + l.carrier + '</td>' +
       '<td class="px-5 py-3"><span class="badge ' + statusClass + '">' + l.status + '</span></td>' +
+      '<td class="px-5 py-3">' + approvalStatusBadge(l.approval_status || 'approved') + '</td>' +
       '<td class="px-5 py-3"><button class="text-brand-600 text-sm hover:underline" onclick="navigateTo(\'logistics-tracking\')">追踪<br><span class="text-[11px] text-gray-400">Lacak</span></button></td>';
     tbody.appendChild(tr);
   });
