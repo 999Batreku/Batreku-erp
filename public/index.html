@@ -8163,7 +8163,11 @@ function initSignaturePad() {
   document.getElementById('signature-pad-file').addEventListener('change', sigPadUploadFile);
   _sigInited = true;
 }
-function sigPadPos(e){ return { x: e.offsetX, y: e.offsetY }; }
+function sigPadPos(e){
+  var r=_sigCanvas.getBoundingClientRect();
+  var sx=_sigCanvas.width/r.width, sy=_sigCanvas.height/r.height;
+  return { x: (e.offsetX!=null?e.offsetX:(e.clientX-r.left))*sx, y: (e.offsetY!=null?e.offsetY:(e.clientY-r.top))*sy };
+}
 function sigPadStart(e){ _sigDrawing = true; var p=sigPadPos(e); _sigCtx.beginPath(); _sigCtx.moveTo(p.x,p.y); }
 function sigPadDraw(e){ if(!_sigDrawing) return; var p=sigPadPos(e); _sigCtx.lineTo(p.x,p.y); _sigCtx.stroke(); }
 function sigPadStop(){ _sigDrawing = false; }
@@ -8175,8 +8179,11 @@ function sigPadHasInk(){
   var blank=document.createElement('canvas'); blank.width=_sigCanvas.width; blank.height=_sigCanvas.height;
   return _sigCanvas.toDataURL('image/png') !== blank.toDataURL('image/png');
 }
-function sigPadUploadFile(input){
-  if(!input.files||!input.files[0]) return;
+function sigPadUploadFile(evt){
+  var input = (evt && evt.target) ? evt.target : evt;
+  if(!input || !input.files || !input.files[0]) return;
+  var file = input.files[0];
+  if(!/^image\//.test(file.type)){ alert('请选择图片文件 / Silakan pilih file gambar'); return; }
   var reader=new FileReader();
   reader.onload=function(e){
     var img=new Image();
@@ -8188,9 +8195,11 @@ function sigPadUploadFile(input){
       var w=img.width*scale, h=img.height*scale;
       _sigCtx.drawImage(img, (_sigCanvas.width-w)/2, (_sigCanvas.height-h)/2, w, h);
     };
+    img.onerror=function(){ alert('图片读取失败 / Gagal membaca gambar'); };
     img.src=e.target.result;
   };
-  reader.readAsDataURL(input.files[0]);
+  reader.onerror=function(){ alert('文件读取失败 / Gagal membaca file'); };
+  reader.readAsDataURL(file);
 }
 function confirmSignaturePad(){
   if(!sigPadHasInk()){ alert('请先手写签名或上传签名图片 / Silakan tanda tangan terlebih dahulu'); return; }
