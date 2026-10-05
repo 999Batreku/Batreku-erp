@@ -371,6 +371,7 @@ CREATE TABLE IF NOT EXISTS inquiries (
 CREATE TABLE IF NOT EXISTS customer_followups (
   id SERIAL PRIMARY KEY,
   customer_id INTEGER NOT NULL REFERENCES customers(id),
+  customer_code TEXT,
   customer_name TEXT,
   customer_grade TEXT,
   followup_type TEXT,
@@ -545,6 +546,8 @@ async function ensureColumns() {
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS applicant_id INTEGER REFERENCES users(id)", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS receiver_name TEXT", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS receiver_phone TEXT", []);
+  // customer_followups 加 customer_code
+  await db.query("ALTER TABLE customer_followups ADD COLUMN IF NOT EXISTS customer_code TEXT", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS shipping_type TEXT", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS planned_ship_date DATE", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS items JSONB", []);
