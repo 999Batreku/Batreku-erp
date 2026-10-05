@@ -276,16 +276,27 @@ CREATE TABLE IF NOT EXISTS logistics_orders (
   id SERIAL PRIMARY KEY,
   logistics_no TEXT UNIQUE NOT NULL,
   order_id INTEGER REFERENCES orders(id),
+  customer_code TEXT,
+  applicant_name TEXT,
+  applicant_id INTEGER REFERENCES users(id),
+  receiver_name TEXT,
+  receiver_phone TEXT,
+  shipping_type TEXT,
   carrier TEXT,
   tracking_no TEXT,
   origin TEXT,
   destination TEXT,
+  planned_ship_date DATE,
   status TEXT DEFAULT 'pending',
   estimated_arrival DATE,
   notes TEXT,
+  items JSONB,
+  materials JSONB,
   created_by INTEGER REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  approval_status TEXT DEFAULT 'pending_ops',
+  approval_chain TEXT DEFAULT '[]'
 );
 
 -- 生产计划
@@ -524,10 +535,24 @@ async function ensureColumns() {
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approved_by INTEGER", []);
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_remark TEXT", []);
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_signature TEXT", []);
-  // logistics_orders 加审批字段
+  // logistics_orders 加审批字段与新字段
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_ops'", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT '[]'", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS customer_code TEXT", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS applicant_name TEXT", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS applicant_id INTEGER REFERENCES users(id)", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS receiver_name TEXT", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS receiver_phone TEXT", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS shipping_type TEXT", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS planned_ship_date DATE", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS items JSONB", []);
+  await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS materials JSONB", []);
+  await db.query(`CREATE TABLE IF NOT EXISTS logistics_tracking (
+    id SERIAL PRIMARY KEY, logistics_id INTEGER REFERENCES logistics_orders(id) ON DELETE CASCADE,
+    tracking_no TEXT UNIQUE NOT NULL, current_node INTEGER DEFAULT 1,
+    node_history JSONB DEFAULT '[]', updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`, []);
   // 迁移：将旧的 'pending' 状态升级为 'pending_ops'（三级审批流）
   await db.query("UPDATE customers SET approval_status = 'pending_ops' WHERE approval_status = 'pending'", []);
   await db.query("UPDATE procurement_requests SET status = 'pending_ops' WHERE status = 'pending'", []);
