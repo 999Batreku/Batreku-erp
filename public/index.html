@@ -953,6 +953,20 @@ tailwind.config = {
     var apiMap = { 'inquiry':'inquiries', 'shipping':'logistics', 'dealer':'dealers', 'aftersales':'aftersales' };
     var apiPath = apiMap[moduleType];
     var nameMap = { 'inquiry':'询盘', 'shipping':'发货', 'dealer':'经销商申请', 'aftersales':'工单' };
+    // 询盘审批：技术总监无需签名，直接提交
+    if (moduleType === 'inquiry' && action === 'approve') {
+      try {
+        var payload = { comment: remark, tech_guidance: remark, signature: 'data:image/png;base64,system_approval' };
+        var resp = await apiCall('PUT', '/' + apiPath + '/' + id + '/approve', payload);
+        if (resp && resp.success) {
+          alert((nameMap[moduleType] || '') + '审批通过！');
+          loadInquiryApprovals();
+        } else {
+          alert('审批失败：' + (resp && resp.error || '未知错误'));
+        }
+      } catch(e) { alert('请求失败：' + e.message); }
+      return;
+    }
     var submitApproval = async function(signature) {
       try {
         var payload = { comment: remark };
