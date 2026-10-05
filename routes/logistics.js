@@ -51,12 +51,15 @@ module.exports = function(db) {
       const logisticsNo = d.logistics_no || ('LGS-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-4));
 
       const result = await db.run(`
-        INSERT INTO logistics_orders (logistics_no, order_id, carrier, tracking_no, origin, destination,
-          status, estimated_arrival, notes, created_by, approval_status, approval_chain)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_ops', '[]')
+        INSERT INTO logistics_orders (logistics_no, order_id, customer_code, applicant_name, applicant_id, receiver_name,
+          shipping_type, carrier, tracking_no, origin, destination,
+          status, planned_ship_date, estimated_arrival, notes, created_by, approval_status, approval_chain)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_ops', '[]')
       `, [
-        logisticsNo, d.order_id, d.carrier, d.tracking_no, d.origin, d.destination,
-        d.status || 'pending', d.estimated_arrival, d.notes || '', req.user.id
+        logisticsNo, d.order_id || null, d.customer_code || null, d.applicant_name || null, req.user.id,
+        d.receiver_name || null, d.shipping_type || null, d.carrier || null, d.tracking_no || null,
+        d.origin || null, d.destination || null,
+        d.status || 'pending', d.planned_ship_date || null, d.estimated_arrival || null, d.notes || '', req.user.id
       ]);
 
       res.json({ success: true, data: { id: result.lastInsertRowid, logistics_no: logisticsNo }, message: '发货申请创建成功，已提交审批' });
@@ -108,6 +111,14 @@ module.exports = function(db) {
 
       if (nextStatus === 'approved') {
         await db.run('UPDATE logistics_orders SET status = ? WHERE id = ?', ['approved', id]);
+        // 审批通过后自动生成物流追踪记录
+        const trackingNo = 'TRK-' + new Date().getFullYear() + '-' + String(id).padStart(4, '0');
+        const today = new Date().toISOString().slice(0, 10);
+        await db.run(
+          `INSERT INTO logistics_tracking (logistics_id, tracking_no, current_node, node_history, updated_at)
+           VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP)`,
+          [id, trackingNo, JSON.stringify([{ node: 1, name: '已审批待发', time: today, operator: req.user.real_name || '系统' }])]
+        );
       }
 
       await db.run('INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
