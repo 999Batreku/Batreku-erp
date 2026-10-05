@@ -75,19 +75,19 @@ module.exports = function(db) {
       const id = req.params.id;
       const row = await db.get('SELECT approval_status FROM inquiries WHERE id = ?', [id]);
       if (!row) return res.json({ success: false, error: '询盘不存在' });
-      if (row.approval_status && row.approval_status !== 'pending_tech' && !['new', 'draft'].includes(row.approval_status)) {
+      if (row.approval_status && row.approval_status !== 'pending_ops' && !['new', 'draft'].includes(row.approval_status)) {
         return res.json({ success: false, error: '当前状态不允许提交' });
       }
-      await db.run(`UPDATE inquiries SET approval_status = 'pending_tech', approval_chain = '[]', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+      await db.run(`UPDATE inquiries SET approval_status = 'pending_ops', approval_chain = '[]', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
       await db.run('INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
         ['inquiry', id, 'submit', req.user.id, '提交询盘审批']);
-      res.json({ success: true, message: '已提交审批，等待技术总监方案指导' });
+      res.json({ success: true, message: '已提交审批，等待运营总监审核' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
   });
 
-  // PUT /api/inquiries/:id/approve — 技术总监方案指导审批
+  // PUT /api/inquiries/:id/approve — 运营总监/技术总监审批
   router.put('/:id/approve', async (req, res) => {
     try {
       const id = req.params.id;
@@ -96,28 +96,38 @@ module.exports = function(db) {
       const row = await db.get('SELECT * FROM inquiries WHERE id = ?', [id]);
       if (!row) return res.json({ success: false, error: '询盘不存在' });
 
-      const aStatus = row.approval_status || 'pending_tech';
+      const aStatus = row.approval_status || 'pending_ops';
       const userRoles = await approval.getUserRoles(db, req.user.id);
-      const permErr = approval.checkApprovalPermission(aStatus, userRoles);
-      if (permErr) return res.status(403).json(permErr);
 
-      if (!tech_guidance || !tech_guidance.trim()) {
-        return res.status(400).json({ success: false, error: '技术总监审批必须填写方案指导意见' });
+      // Ops director: pending_ops → pending_tech (no tech_guidance required)
+      if (aStatus === 'pending_ops' && approval.hasRole(userRoles, 'operations_director')) {
+        const chain = approval.parseChain(row.approval_chain);
+        approval.addToChain(chain, 'pending_ops', req, signature, comment);
+        await db.run(`UPDATE inquiries SET approval_status = 'pending_tech', approval_chain = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          [JSON.stringify(chain), id]);
+        await db.run('INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+          ['inquiry', id, 'approve_ops', req.user.id, comment || '运营总监审核通过']);
+        return res.json({ success: true, message: '运营总监审核通过，已流转至技术总监', approval_status: 'pending_tech' });
       }
-      if (!signature || String(signature).indexOf('data:image') !== 0) {
-        return res.status(400).json({ success: false, error: '审批通过必须签署电子签名' });
+
+      // Tech director: pending_tech (or escalated pending_ops) → approved (tech_guidance required)
+      if (['pending_tech', 'pending_ops'].includes(aStatus) && approval.hasRole(userRoles, 'technical_director')) {
+        if (!tech_guidance || !tech_guidance.trim()) {
+          return res.status(400).json({ success: false, error: '技术总监审批必须填写方案指导意见' });
+        }
+        if (!signature || String(signature).indexOf('data:image') !== 0) {
+          return res.status(400).json({ success: false, error: '审批通过必须签署电子签名' });
+        }
+        const chain = approval.parseChain(row.approval_chain);
+        approval.addToChain(chain, 'pending_tech', req, signature, comment);
+        await db.run(`UPDATE inquiries SET approval_status = 'approved', approval_chain = ?, tech_guidance = ?, approved_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          [JSON.stringify(chain), tech_guidance, req.user.id, id]);
+        await db.run('INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
+          ['inquiry', id, 'approve_tech', req.user.id, tech_guidance]);
+        return res.json({ success: true, message: '技术总监方案指导完成，业务员可创建初步报价', approval_status: 'approved', tech_guidance });
       }
 
-      const chain = approval.parseChain(row.approval_chain);
-      approval.addToChain(chain, aStatus, req, signature, comment);
-
-      await db.run(`UPDATE inquiries SET approval_status = 'approved', approval_chain = ?, tech_guidance = ?, approved_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [JSON.stringify(chain), tech_guidance || comment || '同意跟进', req.user.id, id]);
-
-      await db.run('INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
-        ['inquiry', id, 'approve_tech', req.user.id, tech_guidance || comment || '技术总监审批通过']);
-
-      res.json({ success: true, message: '技术总监方案指导完成，业务员可创建初步报价', approval_status: 'approved', tech_guidance: tech_guidance || comment });
+      return res.status(403).json({ success: false, error: '当前用户无权限审批此询盘' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
