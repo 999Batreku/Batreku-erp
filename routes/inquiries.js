@@ -115,11 +115,8 @@ module.exports = function(db) {
         if (!tech_guidance || !tech_guidance.trim()) {
           return res.status(400).json({ success: false, error: '技术总监审批必须填写方案指导意见' });
         }
-        if (!signature || String(signature).indexOf('data:image') !== 0) {
-          return res.status(400).json({ success: false, error: '审批通过必须签署电子签名' });
-        }
         const chain = approval.parseChain(row.approval_chain);
-        approval.addToChain(chain, 'pending_tech', req, signature, comment);
+        approval.addToChain(chain, 'pending_tech', req, signature || 'system_approval', comment);
         await db.run(`UPDATE inquiries SET approval_status = 'approved', approval_chain = ?, tech_guidance = ?, approved_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
           [JSON.stringify(chain), tech_guidance, req.user.id, id]);
         await db.run('INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
