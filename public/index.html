@@ -815,7 +815,7 @@ tailwind.config = {
     var listEl = document.getElementById('approval-inquiry-list');
     if (!listEl) return;
     listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
-    var res = await apiCall('GET', '/inquiries?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm');
+    var res = await apiCall('GET', '/inquiries?approval_status=pending_tech');
     if (!res || !res.success) { listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>'; return; }
     var data = res.data || [];
     if (data.length === 0) { listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批询盘 / Tidak ada permintaan yang menunggu persetujuan</div>'; return; }
@@ -900,10 +900,11 @@ tailwind.config = {
       var levelBadge = '<span class="badge ' + (levelColorMap[aStatus] || 'badge-yellow') + '">' + (levelMap[aStatus] || aStatus) + '<br><span class="text-[11px]">Menunggu ' + (roleMap[levelRoleMap[aStatus]] || '') + '</span></span>';
       var inputSection = '';
       if (isMyTurn) {
+        var label = moduleType === 'inquiry' ? '方案指导意见 <span class="text-gray-400 font-normal">/ Panduan Teknis（必填）</span>' : '审批意见 <span class="text-gray-400 font-normal">/ Catatan（驳回时必填）</span>';
         inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
           + '<div class="mb-3">'
-          +   '<label class="text-xs font-medium text-gray-600 mb-1 block">审批意见 <span class="text-gray-400 font-normal">/ Catatan（驳回时必填）</span></label>'
-          +   '<textarea id="approval-remark-' + moduleType + '-' + item.id + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" placeholder="输入审批意见... / Masukkan pendapat persetujuan..."></textarea>'
+          +   '<label class="text-xs font-medium text-gray-600 mb-1 block">' + label + '</label>'
+          +   '<textarea id="approval-remark-' + moduleType + '-' + item.id + '" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="3" placeholder="' + (moduleType === 'inquiry' ? '请填写方案指导意见，如产品配置建议、技术方向、是否值得跟进等... / Berikan panduan teknis...' : '输入审批意见... / Masukkan pendapat persetujuan...') + '"></textarea>'
           + '</div></div>';
       } else {
         inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
@@ -944,13 +945,17 @@ tailwind.config = {
     var remarkEl = document.getElementById('approval-remark-' + moduleType + '-' + id);
     var remark = remarkEl ? remarkEl.value.trim() : '';
     if (action === 'reject' && !remark) { alert('驳回时必须填写审批意见'); if (remarkEl) remarkEl.focus(); return; }
+    if (action === 'approve' && moduleType === 'inquiry' && !remark) { alert('技术总监审批必须填写方案指导意见'); if (remarkEl) remarkEl.focus(); return; }
     var apiMap = { 'inquiry':'inquiries', 'shipping':'logistics', 'dealer':'dealers', 'aftersales':'aftersales' };
     var apiPath = apiMap[moduleType];
     var nameMap = { 'inquiry':'询盘', 'shipping':'发货', 'dealer':'经销商申请', 'aftersales':'工单' };
     var submitApproval = async function(signature) {
       try {
         var payload = { comment: remark };
-        if (action === 'approve') payload.signature = signature;
+        if (action === 'approve') {
+          payload.signature = signature;
+          if (moduleType === 'inquiry') { payload.tech_guidance = remark; }
+        }
         var resp = await fetch(API_BASE + '/' + apiPath + '/' + id + '/' + action, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: 'Bearer ' + authToken } : {}) },
@@ -2446,7 +2451,7 @@ function filterOutboundList() {
 <!-- ===== APPROVAL PENDING ===== -->
 <div id="page-approval-pending" class="page fade-in">
   <h3 class="text-lg font-semibold text-gray-800 mb-2">审批中心 <span class="text-xs text-gray-400 font-normal">/ Pusat Persetujuan</span></h3>
-  <p class="text-sm text-gray-500 mb-6">当前登录角色：<span class="font-medium text-brand-600" id="approval-current-role">—</span> · 各模块三级审批（运营总监→技术总监→总经理），审批通过后自动流转下一环节</p>
+  <p class="text-sm text-gray-500 mb-6">当前登录角色：<span class="font-medium text-brand-600" id="approval-current-role">—</span> · 客户/报价/采购/发货/经销商/工单：三级审批（运营总监→技术总监→总经理）；询盘：直达技术总监方案指导</p>
 
   <!-- 无权限提示 -->
   <div id="approval-no-permission" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
@@ -3963,7 +3968,7 @@ function filterOutboundList() {
       <select id="inquiry-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterInquiryList()"><option value="">全部状态 / Semua Status</option><option value="new">待跟进 / Menunggu Tindak Lanjut</option><option value="following">跟进中 / Sedang Ditindaklanjuti</option><option value="quoted">已报价 / Sudah Ditawarkan</option><option value="won">已成交 / Sudah Transaksi</option><option value="closed">已关闭 / Sudah Ditutup</option></select>
       <select id="inquiry-filter-source" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterInquiryList()"><option value="">全部来源 / Semua Sumber</option><option>线上 / Online</option><option>展会 / Pameran</option><option>转介绍 / Rujukan</option><option>政府/机构 / Pemerintah/Institusi</option><option>经销商 / Distributor</option><option>线下 / Offline</option></select>
     </div>
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">LT编号<br><span class="text-[12px] text-gray-400">No. LT</span></th><th class="px-5 py-3">询盘日期<br><span class="text-[12px] text-gray-400">Tanggal Permintaan</span></th><th class="px-5 py-3">客户名称<br><span class="text-[12px] text-gray-400">Nama Pelanggan</span></th><th class="px-5 py-3">来源渠道<br><span class="text-[12px] text-gray-400">Saluran Sumber</span></th><th class="px-5 py-3">询盘产品<br><span class="text-[12px] text-gray-400">Produk</span></th><th class="px-5 py-3">预估金额<br><span class="text-[12px] text-gray-400">Estimasi Jumlah</span></th><th class="px-5 py-3">跟进状态<br><span class="text-[12px] text-gray-400">Status Tindak Lanjut</span></th><th class="px-5 py-3">审批状态<br><span class="text-[12px] text-gray-400">Status Persetujuan</span></th><th class="px-5 py-3">负责人<br><span class="text-[12px] text-gray-400">Penanggung Jawab</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="inquiry-table-body" class="divide-y divide-gray-50">
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">LT编号<br><span class="text-[12px] text-gray-400">No. LT</span></th><th class="px-5 py-3">询盘日期<br><span class="text-[12px] text-gray-400">Tanggal Permintaan</span></th><th class="px-5 py-3">客户名称<br><span class="text-[12px] text-gray-400">Nama Pelanggan</span></th><th class="px-5 py-3">来源渠道<br><span class="text-[12px] text-gray-400">Saluran Sumber</span></th><th class="px-5 py-3">询盘产品<br><span class="text-[12px] text-gray-400">Produk</span></th><th class="px-5 py-3">预估金额<br><span class="text-[12px] text-gray-400">Estimasi Jumlah</span></th><th class="px-5 py-3">跟进状态<br><span class="text-[12px] text-gray-400">Status Tindak Lanjut</span></th><th class="px-5 py-3">审批状态<br><span class="text-[12px] text-gray-400">Status Persetujuan</span></th><th class="px-5 py-3">技术指导意见<br><span class="text-[12px] text-gray-400">Panduan Teknis</span></th><th class="px-5 py-3">负责人<br><span class="text-[12px] text-gray-400">Penanggung Jawab</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="inquiry-table-body" class="divide-y divide-gray-50">
     </tbody></table></div>
     <div class="p-4 border-t border-gray-100 text-sm text-gray-500" id="inquiry-pagination">显示 0 条</div>
   </div>
@@ -7454,7 +7459,13 @@ function renderInquiryTable() {
   inquiryData.forEach(function(item) {
     var st = statusMap[item.status] || {zh: item.status || '待跟进', cls: 'badge-blue'};
     var date = (item.created_at || '').slice(0, 10);
-    var gmBadge = item.created_by_role === 'general_manager' ? ' <span class="text-[12px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">👑 GM创建</span>' : '';
+    var gmBadge = item.created_by_role === 'general_manager' ? ' <span class="text-[12px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded ml-1">GM创建</span>' : '';
+    var apSt = item.approval_status || 'pending_tech';
+    var apLabel = apSt === 'pending_tech' ? {zh:'待技术总监指导', cls:'badge-yellow'} :
+                  apSt === 'approved' ? {zh:'已通过', cls:'badge-green'} :
+                  apSt === 'rejected' ? {zh:'已驳回', cls:'badge-red'} : {zh: apSt, cls:'badge-blue'};
+    var techGuide = item.tech_guidance ? '<span class="text-xs text-green-600" title="' + item.tech_guidance + '">已指导</span>' : (apSt === 'approved' ? '<span class="text-xs text-gray-400">-</span>' : '<span class="text-xs text-gray-300">待指导</span>');
+    var goToQuoteBtn = apSt === 'approved' ? ' <button class="text-green-600 text-sm hover:underline" onclick="goToQuoteFromInquiry(' + item.id + ')">去报价<br><span class="text-[11px] text-gray-400">Ke Penawaran</span></button>' : '';
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-dbid', item.id);
@@ -7465,8 +7476,10 @@ function renderInquiryTable() {
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + (item.product_description || '').substring(0, 30) + '</td>' +
       '<td class="px-5 py-3.5 text-sm font-medium">' + (item.budget_range || '-') + '</td>' +
       '<td class="px-5 py-3.5"><span class="badge ' + st.cls + '">' + st.zh + '</span></td>' +
+      '<td class="px-5 py-3.5"><span class="badge ' + apLabel.cls + '">' + apLabel.zh + '</span></td>' +
+      '<td class="px-5 py-3.5">' + techGuide + '</td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + (item.assigned_to || '-') + '</td>' +
-      '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="viewInquiry(' + item.id + ')">详情<br><span class="text-[11px] text-gray-400">Detail</span></button></td>';
+      '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline" onclick="viewInquiry(' + item.id + ')">详情<br><span class="text-[11px] text-gray-400">Detail</span></button>' + goToQuoteBtn + '</td>';
     tbody.appendChild(tr);
   });
 
@@ -7480,6 +7493,7 @@ function viewInquiry(id) {
     var d = res.data;
     var statusMap = {'new':'待跟进 / Belum ditindaklanjuti','following':'跟进中 / Sedang ditindaklanjuti','quoted':'已报价 / Sudah di-quote','won':'已成交 / Deal','lost':'已流失 / Hilang','closed':'已关闭 / Ditutup'};
     var channelMap = {'online':'线上 / Online','offline':'线下 / Offline','exhibition':'展会 / Pameran','referral':'转介绍 / Referral','government':'政府/机构 / Pemerintah/Institusi','dealer':'经销商 / Dealer'};
+    var techGuideHtml = d.tech_guidance ? '<div class="bg-green-50 border border-green-200 rounded-lg p-4 mt-4"><div class="text-sm font-medium text-green-800 mb-1">技术总监方案指导 / Panduan Teknis Direktur Teknik</div><div class="text-sm text-green-700">' + d.tech_guidance + '</div></div>' : (d.approval_status === 'approved' ? '<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4"><div class="text-sm text-gray-500">已通过审批，暂无详细指导意见</div></div>' : '');
     var html =
       '<div class="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4" onclick="if(event.target===this){this.remove();}">' +
       '<div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">' +
@@ -7505,6 +7519,7 @@ function viewInquiry(id) {
           '</div>' +
           (d.product_description ? '<div class="border-t border-gray-100 pt-4"><div class="text-xs text-gray-400 mb-1">询盘产品 / Produk yang diminta</div><div class="text-sm text-gray-800 whitespace-pre-wrap">' + d.product_description + '</div></div>' : '') +
           (d.notes ? '<div class="border-t border-gray-100 pt-4"><div class="text-xs text-gray-400 mb-1">备注说明 / Catatan</div><div class="text-sm text-gray-800 whitespace-pre-wrap">' + d.notes + '</div></div>' : '') +
+          techGuideHtml +
         '</div>' +
         '<div class="sticky bottom-0 bg-gray-50 px-6 py-3 border-t border-gray-100 text-right text-xs text-gray-400">创建时间: ' + (d.created_at||'') + '</div>' +
       '</div></div>';
@@ -7515,6 +7530,23 @@ function viewInquiry(id) {
 }
 function row(label, val) {
   return '<div class="col-span-' + (val && String(val).length > 30 ? '2' : '1') + '"><div class="text-xs text-gray-400">' + label + '</div><div class="text-sm text-gray-800 font-medium break-words">' + (val || '-') + '</div></div>';
+}
+
+function goToQuoteFromInquiry(inquiryId) {
+  apiCall('GET', '/inquiries/' + inquiryId).then(function(res) {
+    if (!res || !res.success || !res.data) { alert('询盘数据加载失败'); return; }
+    var d = res.data;
+    if (d.approval_status !== 'approved') { alert('只有技术总监审批通过的询盘才能创建报价'); return; }
+    navigateTo('quotation-new');
+    setTimeout(function() {
+      var f = document.getElementById('quote-customer');
+      if (f) f.value = d.company_name || '';
+      var f2 = document.getElementById('quote-product');
+      if (f2) f2.value = d.product_description || '';
+      var f3 = document.getElementById('quote-inquiry-ref');
+      if (f3) { f3.value = d.inquiry_no || ''; f3.dataset.inquiryId = inquiryId; }
+    }, 300);
+  });
 }
 
 function renderQuotationTable() {
