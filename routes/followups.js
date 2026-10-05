@@ -33,7 +33,7 @@ module.exports = function(db) {
   // GET /api/followups/customers
   router.get('/customers', async (req, res) => {
     try {
-      const customers = await db.all(`SELECT id, name, customer_code, grade FROM customers WHERE status = 1 ORDER BY name`, []);
+      const customers = await db.all(`SELECT id, name, customer_code, grade FROM customers WHERE status = 1 AND customer_code IS NOT NULL AND customer_code != '' ORDER BY customer_code`, []);
       res.json({ success: true, data: customers });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
@@ -43,17 +43,17 @@ module.exports = function(db) {
   // POST /api/followups
   router.post('/', async (req, res) => {
     try {
-      const { customer_id, customer_name, customer_grade, followup_type, followup_date, next_followup_date, content, feedback, attachment, location_name } = req.body;
+      const { customer_id, customer_code, customer_name, customer_grade, followup_type, followup_date, next_followup_date, content, feedback, attachment, location_name } = req.body;
 
       if (!customer_id || !followup_type || !followup_date || !content) {
         return res.json({ success: false, error: '请填写必填字段：客户、跟进方式、跟进日期、跟进内容' });
       }
 
       const result = await db.run(`
-        INSERT INTO customer_followups (customer_id, customer_name, customer_grade, followup_type, followup_date, next_followup_date, content, feedback, attachment, location_name, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO customer_followups (customer_id, customer_code, customer_name, customer_grade, followup_type, followup_date, next_followup_date, content, feedback, attachment, location_name, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        customer_id, customer_name || '', customer_grade || '', followup_type || '', followup_date, next_followup_date || '', content || '', feedback || '', attachment || '', location_name || '', req.user?.username || ''
+        customer_id, customer_code || '', customer_name || '', customer_grade || '', followup_type || '', followup_date, next_followup_date || '', content || '', feedback || '', attachment || '', location_name || '', req.user?.username || ''
       ]);
 
       res.json({ success: true, data: { id: result.lastInsertRowid } });
