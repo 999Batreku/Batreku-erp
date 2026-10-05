@@ -9,7 +9,7 @@ module.exports = function(db) {
   router.get('/', async (req, res) => {
     try {
       const rows = await db.all(`
-        SELECT o.*, c.name as customer_name, u.real_name as creator_name
+        SELECT o.*, c.name as customer_name, c.customer_code as customer_code, u.real_name as creator_name
         FROM orders o
         LEFT JOIN customers c ON c.id = o.customer_id
         LEFT JOIN users u ON u.id = o.created_by
@@ -25,7 +25,7 @@ module.exports = function(db) {
   router.get('/:id', async (req, res) => {
     try {
       const o = await db.get(`
-        SELECT o.*, c.name as customer_name, c.contact_person, c.phone as customer_phone, c.address as customer_address
+        SELECT o.*, c.name as customer_name, c.customer_code as customer_code, c.contact_person, c.phone as customer_phone, c.address as customer_address
         FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = ?
       `, [req.params.id]);
       if (!o) return res.json({ success: false, error: '订单不存在' });
