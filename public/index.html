@@ -783,7 +783,7 @@ tailwind.config = {
     });
     var descMap = {
       'customer': '业务员录入的新客户默认为「待审批」。审批通过后系统发放正式客户编码（CUS-xxx），客户状态转为「已审批」方可正常开展业务；驳回需填写原因，业务员可修改后重新提交。',
-      'inquiry': '新建询盘提交后进入三级审批流程（运营总监→技术总监→总经理），审批通过后方可正式跟进。',
+      'inquiry': '业务员提交询盘后先到运营总监审核，2小时内未审批则系统自动升级至技术总监进行方案指导。技术总监给出指导意见后，业务员方可创建初步报价。',
       'shipping': '发货申请提交后进入三级审批流程，审批通过后方可安排发货。',
       'dealer': '经销商准入申请提交后进入三级审批，审批通过后方可正式合作。',
       'aftersales': '工单创建后进入三级审批，审批通过后方可安排处理。'
@@ -815,7 +815,11 @@ tailwind.config = {
     var listEl = document.getElementById('approval-inquiry-list');
     if (!listEl) return;
     listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
-    var res = await apiCall('GET', '/inquiries?approval_status=pending_tech');
+    var role = currentUser ? (currentUser.role || '') : '';
+    var statusFilter = 'pending_tech';
+    if (role === 'operations_director') { statusFilter = 'pending_ops'; }
+    else if (role === 'general_manager') { statusFilter = 'pending_ops&approval_status=pending_tech'; }
+    var res = await apiCall('GET', '/inquiries?approval_status=' + statusFilter);
     if (!res || !res.success) { listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>'; return; }
     var data = res.data || [];
     if (data.length === 0) { listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批询盘 / Tidak ada permintaan yang menunggu persetujuan</div>'; return; }
