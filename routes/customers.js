@@ -91,7 +91,7 @@ module.exports = function(db) {
         company_type, name, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, product_types, estimated_kw, estimated_kwh, locations,
-        grade, source_channel, salesperson, approval_status
+        grade, source_channel, primary_owner, salesperson, approval_status
       } = req.body;
 
       // 自动生成客户编码
@@ -106,15 +106,15 @@ module.exports = function(db) {
         INSERT INTO customers (customer_code, company_type, name, short_name, tax_number, address,
           contact_person, contact_position, phone, email, whatsapp, other_contact,
           notes, product_types, estimated_kw, estimated_kwh, locations,
-          grade, source_channel, salesperson, approval_status, status, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+          grade, source_channel, primary_owner, salesperson, approval_status, status, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
       `, [
         code, company_type || '', name || '', short_name || '', tax_number || '', address || '',
         contact_person || '', contact_position || '', phone || '', email || '', whatsapp || '', other_contact || '',
         initial_needs || '', Array.isArray(product_types) ? product_types.join(',') : (product_types || ''),
         estimated_kw || null, estimated_kwh || null,
         Array.isArray(locations) ? JSON.stringify(locations) : (locations || ''),
-        grade || '', source_channel || '', salesperson || '', approval_status || 'pending_ops',
+        grade || '', source_channel || '', primary_owner || '', salesperson || '', approval_status || 'pending_ops',
         req.user.id
       ]);
 
@@ -131,7 +131,7 @@ module.exports = function(db) {
         company_type, name, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, product_types, estimated_kw, estimated_kwh, locations,
-        grade, source_channel, salesperson, approval_status
+        grade, source_channel, primary_owner, salesperson, approval_status
       } = req.body;
 
       await db.run(`
@@ -154,6 +154,7 @@ module.exports = function(db) {
           locations = COALESCE(?, locations),
           grade = COALESCE(?, grade),
           source_channel = COALESCE(?, source_channel),
+          primary_owner = COALESCE(?, primary_owner),
           salesperson = COALESCE(?, salesperson),
           approval_status = COALESCE(?, approval_status),
           updated_at = CURRENT_TIMESTAMP
@@ -164,7 +165,7 @@ module.exports = function(db) {
         initial_needs, Array.isArray(product_types) ? product_types.join(',') : product_types,
         estimated_kw, estimated_kwh,
         Array.isArray(locations) ? JSON.stringify(locations) : locations,
-        grade, source_channel, salesperson, approval_status,
+        grade, source_channel, primary_owner, salesperson, approval_status,
         req.params.id
       ]);
 

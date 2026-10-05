@@ -430,7 +430,7 @@ tailwind.config = {
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">来源渠道 <span class="text-xs text-gray-400">/ Saluran Sumber</span></label>
-        <select id="cust-source" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        <select id="cust-source" class="w-full px-4 py-2 border border-gray-300 rounded-lg" onchange="toggleSourceCustom()">
           <option value="">请选择 / Pilih</option>
           <option value="IG">IG (Instagram)</option>
           <option value="Facebook">Facebook</option>
@@ -441,15 +441,22 @@ tailwind.config = {
           <option value="经销商">经销商 / Distributor</option>
           <option value="官网">官网 / Website</option>
           <option value="直接拜访">直接拜访 / Kunjungan Langsung</option>
-          <option value="其他">其他 / Lainnya</option>
+          <option value="其他">其他 / Lainnya（手动输入）</option>
         </select>
+        <input id="cust-source-custom" type="text" class="hidden w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg" placeholder="手动输入来源渠道 / Masukkan sumber lainnya">
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">负责业务员 <span class="text-xs text-gray-400">/ Sales yang Bertanggung Jawab</span></label>
-        <input type="text" id="cust-salesperson" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="手动输入业务员姓名 / Masukkan nama sales" list="salesperson-list">
-        <datalist id="salesperson-list">
-          <option value="Yudha"><option value="Irfan"><option value="Vanessa"><option value="Rita"><option value="Steve">
+        <label class="block text-sm font-medium text-gray-700 mb-1">业务主负责人 * <span class="text-xs text-gray-400">/ Penanggung Jawab Utama Bisnis</span></label>
+        <input type="text" id="cust-primary-owner" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="业务主导人姓名 / Nama penanggung jawab utama" list="owner-name-list">
+        <p class="text-xs text-gray-400 mt-1">业务主导人，可能为总经理/运营总监/技术总监或业务员，主导项目奖励分配</p>
+        <datalist id="owner-name-list">
+          <option value="San"><option value="Steve"><option value="Alex"><option value="Yudha"><option value="Felita"><option value="Noel">
         </datalist>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">协助业务员 <span class="text-xs text-gray-400">/ Sales Pendamping</span></label>
+        <input type="text" id="cust-salesperson" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="协助业务员姓名（无则留空）/ Nama sales pendamping" list="owner-name-list">
+        <p class="text-xs text-gray-400 mt-1">如有协助人员需填写，协助人员同样参与项目奖励分配</p>
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">编码审批状态 <span class="text-xs text-gray-400">/ Status Persetujuan Kode</span></label>
@@ -466,6 +473,12 @@ tailwind.config = {
   </div>
 
   <script>
+  function toggleSourceCustom() {
+    var sel = document.getElementById('cust-source');
+    var custom = document.getElementById('cust-source-custom');
+    if (sel.value === '其他') { custom.classList.remove('hidden'); custom.focus(); }
+    else { custom.classList.add('hidden'); custom.value = ''; }
+  }
   function addProjectLocation() {
     var container = document.getElementById('project-locations');
     var item = document.createElement('div');
@@ -515,7 +528,10 @@ tailwind.config = {
       estimated_kwh: parseFloat(document.getElementById('cust-estimated-kwh').value) || null,
       locations: locations,
       grade: document.getElementById('cust-grade').value,
-      source_channel: document.getElementById('cust-source').value,
+      source_channel: (document.getElementById('cust-source').value === '其他'
+        ? document.getElementById('cust-source-custom').value.trim()
+        : document.getElementById('cust-source').value),
+      primary_owner: document.getElementById('cust-primary-owner').value.trim(),
       salesperson: document.getElementById('cust-salesperson').value
     };
   }
@@ -527,6 +543,7 @@ tailwind.config = {
     if (!data.name) { alert('请填写公司全称 / Harap isi nama perusahaan'); return; }
     if (!data.contact_person) { alert('请填写联系人姓名 / Harap isi nama kontak'); return; }
     if (!data.phone) { alert('请填写电话 / Harap isi nomor telepon'); return; }
+    if (!data.primary_owner) { alert('请填写业务主负责人 / Harap isi penanggung jawab utama'); return; }
 
     data.approval_status = status;
 
@@ -563,12 +580,15 @@ tailwind.config = {
           // 清空所有输入框
           ['cust-company-type','cust-name','cust-short-name','cust-tax-number','cust-address',
            'cust-contact-person','cust-contact-position','cust-phone','cust-email','cust-whatsapp','cust-other-contact',
-           'cust-initial-needs','cust-estimated-kw','cust-estimated-kwh','cust-grade','cust-source','cust-salesperson'
+           'cust-initial-needs','cust-estimated-kw','cust-estimated-kwh','cust-grade','cust-source','cust-salesperson','cust-primary-owner','cust-source-custom'
           ].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
           // 清空文本域
           document.querySelectorAll('#page-customer-new textarea').forEach(function(ta) { ta.value = ''; });
           // 重置复选框
           document.querySelectorAll('#page-customer-new input[type=checkbox]').forEach(function(cb) { cb.checked = false; });
+          // 重置来源自定义框隐藏
+          var srcCustom = document.getElementById('cust-source-custom');
+          if (srcCustom) srcCustom.classList.add('hidden');
           // 重置客户编码显示
           document.getElementById('cust-code').value = '';
           navigateTo('customer-list');
@@ -636,13 +656,63 @@ tailwind.config = {
       var isMyTurn = (levelRoleMap[aStatus] === myRole);
       var isOpsLevel = (aStatus === 'pending_ops');
 
-      var detailParts = [];
-      detailParts.push('<span class="text-gray-500">联系人：</span>' + (c.contact_person || '-'));
-      detailParts.push('<span class="text-gray-500">电话/WA：</span>' + (c.whatsapp || c.phone || '-'));
-      if (c.email) detailParts.push('<span class="text-gray-500">邮箱：</span>' + c.email);
-      if (c.source_channel) detailParts.push('<span class="text-gray-500">来源：</span>' + c.source_channel);
-      if (c.salesperson) detailParts.push('<span class="text-gray-500">业务员：</span>' + c.salesperson);
-      if (c.address) detailParts.push('<span class="text-gray-500">地址：</span>' + c.address);
+      var fieldRows = function(rows) {
+        return rows.map(function(r) {
+          var label = r[0]; var val = r[1]; var cls = r[2] || '';
+          if (val === '' || val === null || val === undefined) val = '-';
+          return '<div class="flex items-start gap-2 ' + cls + '"><span class="text-gray-400 shrink-0">' + label + '：</span><span class="text-gray-800 break-all">' + val + '</span></div>';
+        }).join('');
+      };
+      var infoSection = function(title, accent, body) {
+        return '<div class="rounded-lg border border-gray-100 overflow-hidden mb-3">'
+          + '<div class="px-3 py-2 bg-gray-50 text-xs font-semibold text-gray-600 border-b border-gray-100 border-l-4" style="border-left-color:' + accent + '">' + title + '</div>'
+          + '<div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">' + body + '</div>'
+          + '</div>';
+      };
+
+      // 需求产品类型（数组或逗号串）
+      var productTypes = c.product_types || '';
+      if (productTypes && !Array.isArray(productTypes)) {
+        try { var parsed = JSON.parse(productTypes); if (Array.isArray(parsed)) productTypes = parsed.join('、'); }
+        catch(e) { productTypes = String(productTypes).split(',').join('、'); }
+      }
+      if (Array.isArray(productTypes)) productTypes = productTypes.join('、');
+
+      // 项目地点（JSON）
+      var locText = '-';
+      try {
+        var locs = JSON.parse(c.locations || '[]');
+        if (Array.isArray(locs) && locs.length) {
+          locText = locs.map(function(l, idx) {
+            var s = (idx + 1) + '. ' + (l.name || '未命名');
+            if (l.lat || l.lng) s += '（' + (l.lat || '-') + ', ' + (l.lng || '-') + '）';
+            return s;
+          }).join('\n');
+        }
+      } catch(e) { locText = c.locations || '-'; }
+
+      var fullInfo = '';
+      fullInfo += infoSection('基础信息 / Informasi Dasar', '#6366f1', fieldRows([
+        ['客户编码', code], ['公司类型', c.company_type],
+        ['公司全称', c.name], ['公司简称', c.short_name],
+        ['税号NPWP', c.tax_number, 'md:col-span-2'],
+        ['注册地址', c.address, 'md:col-span-2']
+      ]));
+      fullInfo += infoSection('联系人信息 / Informasi Kontak', '#10b981', fieldRows([
+        ['联系人', c.contact_person], ['职务', c.contact_position],
+        ['电话', c.phone], ['WhatsApp', c.whatsapp],
+        ['邮箱', c.email], ['其他联系方式', c.other_contact]
+      ]));
+      fullInfo += infoSection('需求信息 / Informasi Kebutuhan', '#3b82f6',
+        fieldRows([['需求产品类型', productTypes, 'md:col-span-2']])
+        + fieldRows([['预估光伏容量', c.estimated_kw ? c.estimated_kw + ' kW' : '-'], ['预估储能容量', c.estimated_kwh ? c.estimated_kwh + ' kWh' : '-']])
+        + '<div class="md:col-span-2 flex items-start gap-2"><span class="text-gray-400 shrink-0">项目地点：</span><span class="text-gray-800 whitespace-pre-line break-all">' + locText + '</span></div>'
+        + '<div class="md:col-span-2 flex items-start gap-2"><span class="text-gray-400 shrink-0">初次需求：</span><span class="text-gray-800 whitespace-pre-line break-all">' + (c.notes || '-') + '</span></div>'
+      );
+      fullInfo += infoSection('客户分级与业务归属 / Klasifikasi & Kepemilikan Bisnis', '#f59e0b', fieldRows([
+        ['客户等级', c.grade ? c.grade + '级' : '-'], ['来源渠道', c.source_channel],
+        ['业务主负责人', c.primary_owner], ['协助业务员', c.salesperson]
+      ]));
 
       var levelBadge = '<span class="badge ' + (levelColorMap[aStatus] || 'badge-yellow') + '">' + (levelMap[aStatus] || aStatus) + '<br><span class="text-[11px]">Menunggu ' + (roleMap[levelRoleMap[aStatus]] || '') + '</span></span>';
 
@@ -700,9 +770,7 @@ tailwind.config = {
         +   '</div>'
         +   '<span class="text-xs text-gray-400 font-mono">#' + c.id + '</span>'
         + '</div>'
-        + '<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-gray-700 mb-4">'
-        +   detailParts.map(function(p){ return '<div>' + p + '</div>'; }).join('')
-        + '</div>'
+        + fullInfo
         + inputSection
         + actionButtons
         + '</div>';
