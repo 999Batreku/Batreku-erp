@@ -5,24 +5,44 @@ module.exports = function(db) {
   const router = express.Router();
   router.use(authMiddleware);
 
+  // 查看权限角色（可看全部数据）
+  const VIEWER_ROLES = ['operations_director', 'technical_director', 'general_manager'];
+  function hasRole(roles, role) { return roles.indexOf(role) >= 0; }
+  async function getUserRoles(userId) {
+    const rows = await db.all('SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = ?', [userId]);
+    return rows.map(function(r){ return r.name; });
+  }
+  async function isViewer(userId) {
+    const roles = await getUserRoles(userId);
+    return VIEWER_ROLES.some(function(r){ return hasRole(roles, r); });
+  }
+
   // GET /api/followups
   router.get('/', async (req, res) => {
     try {
       const { customer_id, customer_grade, followup_type, keyword } = req.query;
+      const viewer = await isViewer(req.user.id);
 
-      let sql = `SELECT f.*, c.customer_code FROM customer_followups f LEFT JOIN customers c ON c.id = f.customer_id WHERE 1=1`;
+      // 销售只能看自己录入客户的跟进记录
+      let ownerFilter = '';
       const params = [];
+      if (!viewer) {
+        ownerFilter = ' AND c.created_by = ?';
+        params.push(req.user.id);
+      }
 
-      if (customer_id) { sql += ` AND customer_id = ?`; params.push(customer_id); }
-      if (customer_grade) { sql += ` AND customer_grade = ?`; params.push(customer_grade); }
-      if (followup_type) { sql += ` AND followup_type = ?`; params.push(followup_type); }
+      let sql = `SELECT f.*, c.customer_code FROM customer_followups f LEFT JOIN customers c ON c.id = f.customer_id WHERE 1=1` + ownerFilter;
+
+      if (customer_id) { sql += ` AND f.customer_id = ?`; params.push(customer_id); }
+      if (customer_grade) { sql += ` AND f.customer_grade = ?`; params.push(customer_grade); }
+      if (followup_type) { sql += ` AND f.followup_type = ?`; params.push(followup_type); }
       if (keyword) {
-        sql += ` AND (content LIKE ? OR feedback LIKE ? OR customer_name LIKE ?)`;
+        sql += ` AND (f.content LIKE ? OR f.feedback LIKE ? OR f.customer_name LIKE ?)`;
         const kw = `%${keyword}%`;
         params.push(kw, kw, kw);
       }
 
-      sql += ` ORDER BY followup_date DESC, id DESC`;
+      sql += ` ORDER BY f.followup_date DESC, f.id DESC`;
       const records = await db.all(sql, params);
       res.json({ success: true, data: records });
     } catch (e) {
