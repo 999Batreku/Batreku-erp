@@ -44,36 +44,22 @@ module.exports = function(db) {
     try {
       const userRoles = await getUserRoles(req.user.id);
       const isViewer = hasRole(userRoles, 'operations_director') || hasRole(userRoles, 'technical_director') || hasRole(userRoles, 'general_manager');
-      const whereClause = isViewer ? '' : ' WHERE created_by = ?';
-      const baseSql = 'SELECT * FROM customers' + whereClause;
+      // 数据权限：销售只能看自己录入的（兼容老数据 created_by 为 NULL 的情况）
+      const ownerFilter = isViewer ? '' : ' AND (created_by IS NULL OR created_by = ?)';
+      const baseParams = isViewer ? [] : [req.user.id];
+      const baseSql = 'SELECT * FROM customers WHERE 1=1' + ownerFilter;
 
       let customers;
       const statusFilter = req.query.approval_status;
       if (statusFilter) {
         const statuses = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
         const statusPlaceholders = statuses.map(function(){ return '?'; }).join(',');
-        const sql = baseSql
-          ? baseSql.replace('WHERE', 'WHERE approval_status IN (' + statusPlaceholders + ') AND')
-          : ' WHERE approval_status IN (' + statusPlaceholders + ')';
-        const params = isViewer ? statuses : [req.user.id].concat(statuses);
-        const finalSql = (baseSql ? baseSql + ' AND approval_status IN (' + statusPlaceholders + ')' : ' WHERE approval_status IN (' + statusPlaceholders + ')');
-        if (isViewer) {
-          customers = await db.all(
-            'SELECT * FROM customers WHERE approval_status IN (' + statusPlaceholders + ') ORDER BY id DESC',
-            statuses
-          );
-        } else {
-          customers = await db.all(
-            'SELECT * FROM customers WHERE created_by = ? AND approval_status IN (' + statusPlaceholders + ') ORDER BY id DESC',
-            [req.user.id].concat(statuses)
-          );
-        }
+        customers = await db.all(
+          baseSql + ' AND approval_status IN (' + statusPlaceholders + ') ORDER BY id DESC',
+          baseParams.concat(statuses)
+        );
       } else {
-        if (isViewer) {
-          customers = await db.all('SELECT * FROM customers ORDER BY id DESC', []);
-        } else {
-          customers = await db.all('SELECT * FROM customers WHERE created_by = ? ORDER BY id DESC', [req.user.id]);
-        }
+        customers = await db.all(baseSql + ' ORDER BY id DESC', baseParams);
       }
       res.json({ success: true, data: customers });
     } catch (e) {
@@ -89,7 +75,7 @@ module.exports = function(db) {
       // 数据权限：销售只能看自己录入的客户
       const userRoles = await getUserRoles(req.user.id);
       const isViewer = hasRole(userRoles, 'operations_director') || hasRole(userRoles, 'technical_director') || hasRole(userRoles, 'general_manager');
-      if (!isViewer && customer.created_by !== req.user.id) {
+      if (!isViewer && customer.created_by != null && customer.created_by !== req.user.id) {
         return res.status(403).json({ success: false, error: '无权查看此客户信息' });
       }
       res.json({ success: true, data: customer });
@@ -120,15 +106,16 @@ module.exports = function(db) {
         INSERT INTO customers (customer_code, company_type, name, short_name, tax_number, address,
           contact_person, contact_position, phone, email, whatsapp, other_contact,
           notes, product_types, estimated_kw, estimated_kwh, locations,
-          grade, source_channel, salesperson, approval_status, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          grade, source_channel, salesperson, approval_status, status, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
       `, [
         code, company_type || '', name || '', short_name || '', tax_number || '', address || '',
         contact_person || '', contact_position || '', phone || '', email || '', whatsapp || '', other_contact || '',
         initial_needs || '', Array.isArray(product_types) ? product_types.join(',') : (product_types || ''),
         estimated_kw || null, estimated_kwh || null,
         Array.isArray(locations) ? JSON.stringify(locations) : (locations || ''),
-        grade || '', source_channel || '', salesperson || '', approval_status || 'pending_ops'
+        grade || '', source_channel || '', salesperson || '', approval_status || 'pending_ops',
+        req.user.id
       ]);
 
       res.json({ success: true, data: { id: result.lastInsertRowid, customer_code: code } });
@@ -180,6 +167,9 @@ module.exports = function(db) {
         grade, source_channel, salesperson, approval_status,
         req.params.id
       ]);
+
+      // 如果 created_by 为空，补设为当前编辑者
+      await db.run(`UPDATE customers SET created_by = ? WHERE id = ? AND created_by IS NULL`, [req.user.id, req.params.id]);
 
       res.json({ success: true });
     } catch (e) {

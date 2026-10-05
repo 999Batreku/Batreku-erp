@@ -1864,11 +1864,11 @@ function filterOutboundList() {
     }
   }
 
-  // 加载跟进记录列表（带筛选）
+  // 加载跟进记录列表（带筛选）- 折叠卡片样式
   async function loadFollowUpList() {
-    var tbody = document.getElementById('followup-table-body');
+    var container = document.getElementById('followup-list-container');
     var pagination = document.getElementById('followup-pagination');
-    if (!tbody) return;
+    if (!container) return;
 
     var customerId = document.getElementById('follow-filter-customer') ? document.getElementById('follow-filter-customer').value : '';
     var grade = document.getElementById('follow-filter-grade') ? document.getElementById('follow-filter-grade').value : '';
@@ -1884,43 +1884,75 @@ function filterOutboundList() {
 
     var res = await apiCall('GET', '/followups' + qs);
     if (!res || !res.success) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#999;">加载失败或暂无数据</td></tr>';
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">加载失败或暂无数据</div>';
       if (pagination) pagination.textContent = '暂无跟进记录';
       return;
     }
 
     var records = res.data || [];
     if (records.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#999;">暂无跟进记录</td></tr>';
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">暂无跟进记录</div>';
       if (pagination) pagination.textContent = '共 0 条';
       return;
     }
 
     var typeBadgeMap = {
-      '上门拜访': 'badge badge-blue',
-      '电话': 'badge badge-green',
-      'WhatsApp': 'badge badge-green',
-      '邮件': 'badge badge-yellow',
-      '视频会议': 'badge badge-purple'
+      '上门拜访': 'bg-blue-100 text-blue-700',
+      '电话': 'bg-green-100 text-green-700',
+      'WhatsApp': 'bg-emerald-100 text-emerald-700',
+      '邮件': 'bg-yellow-100 text-yellow-700',
+      '视频会议': 'bg-purple-100 text-purple-700'
     };
 
     var html = '';
-    records.forEach(function(r) {
-      var badgeCls = typeBadgeMap[r.followup_type] || 'badge badge-blue';
-      html += '<tr class="hover:bg-gray-50" data-dbid="' + r.id + '">';
-      html += '<td class="px-4 py-3.5 text-sm text-gray-500">' + (r.followup_date || '-') + '</td>';
-      html += '<td class="px-4 py-3.5 text-sm font-mono text-brand-600">' + (r.customer_code || '-') + '</td>';
-      html += '<td class="px-4 py-3.5 text-sm font-medium text-gray-900">' + (r.customer_name || '-') + '</td>';
-      html += '<td class="px-4 py-3.5 text-sm text-gray-500">' + (r.location_name || '-') + '</td>';
-      html += '<td class="px-4 py-3.5"><span class="' + badgeCls + '">' + (r.followup_type || '-') + '</span></td>';
-      html += '<td class="px-4 py-3.5 text-sm text-gray-700">' + (r.content || '-') + '</td>';
-      html += '<td class="px-4 py-3.5 text-sm text-gray-600">' + (r.feedback || '-') + '</td>';
-      html += '<td class="px-4 py-3.5 text-sm text-gray-500">' + (r.next_followup_date || '-') + '</td>';
-      html += '<td class="px-4 py-3.5 text-sm text-gray-700">' + (r.created_by || '-') + '</td>';
-      html += '</tr>';
+    records.forEach(function(r, idx) {
+      var badgeCls = typeBadgeMap[r.followup_type] || 'bg-gray-100 text-gray-700';
+      var contentPreview = (r.content || '').length > 60 ? (r.content || '').substring(0, 60) + '...' : (r.content || '');
+      var nextDateBadge = r.next_followup_date ? '<span class="ml-2 text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded">⏰ ' + r.next_followup_date + '</span>' : '';
+
+      html += '<div class="followup-card" data-id="' + r.id + '">';
+      // 折叠头部：一行摘要
+      html += '<div class="flex items-center px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors" onclick="toggleFollowupCard(' + r.id + ')">';
+      html += '<span class="text-xs text-gray-400 w-20 shrink-0">' + (r.followup_date || '-') + '</span>';
+      html += '<span class="text-sm font-mono text-brand-600 w-20 shrink-0">' + (r.customer_code || '-') + '</span>';
+      html += '<span class="text-xs px-1.5 py-0.5 rounded ' + badgeCls + ' shrink-0 mr-2">' + (r.followup_type || '-') + '</span>';
+      html += '<span class="text-sm text-gray-700 truncate flex-1">' + contentPreview + '</span>';
+      html += nextDateBadge;
+      html += '<svg class="followup-arrow-' + r.id + ' w-4 h-4 text-gray-400 shrink-0 ml-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>';
+      html += '</div>';
+      // 展开详情
+      html += '<div id="followup-detail-' + r.id + '" class="hidden px-4 pb-4 pt-1 bg-gray-50 border-t border-gray-100">';
+      html += '<div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">';
+      html += '<div><span class="text-gray-400">客户名称：</span><span class="text-gray-800">' + (r.customer_name || '-') + '</span></div>';
+      html += '<div><span class="text-gray-400">关联项目：</span><span class="text-gray-800">' + (r.location_name || '-') + '</span></div>';
+      html += '<div><span class="text-gray-400">客户等级：</span><span class="text-gray-800">' + (r.customer_grade || '-') + '</span></div>';
+      html += '<div><span class="text-gray-400">跟进人：</span><span class="text-gray-800">' + (r.created_by || '-') + '</span></div>';
+      html += '</div>';
+      html += '<div class="mt-2"><span class="text-gray-400 text-sm">跟进内容：</span><p class="text-gray-800 text-sm mt-1 whitespace-pre-wrap">' + (r.content || '-') + '</p></div>';
+      if (r.feedback) {
+        html += '<div class="mt-2"><span class="text-gray-400 text-sm">客户反馈：</span><p class="text-gray-800 text-sm mt-1 whitespace-pre-wrap">' + r.feedback + '</p></div>';
+      }
+      if (r.next_followup_date) {
+        html += '<div class="mt-2 text-sm"><span class="text-gray-400">下次跟进：</span><span class="text-orange-600 font-medium">' + r.next_followup_date + '</span></div>';
+      }
+      html += '</div>';
+      html += '</div>';
     });
-    tbody.innerHTML = html;
+    container.innerHTML = html;
     if (pagination) pagination.textContent = '显示 1-' + records.length + ' 共 ' + records.length + ' 条';
+  }
+
+  function toggleFollowupCard(id) {
+    var detail = document.getElementById('followup-detail-' + id);
+    var arrow = document.querySelector('.followup-arrow-' + id);
+    if (!detail) return;
+    if (detail.classList.contains('hidden')) {
+      detail.classList.remove('hidden');
+      if (arrow) arrow.style.transform = 'rotate(180deg)';
+    } else {
+      detail.classList.add('hidden');
+      if (arrow) arrow.style.transform = '';
+    }
   }
 
   // 提交新建跟进记录
@@ -2069,20 +2101,10 @@ function filterOutboundList() {
     </div>
   </div>
 
-  <!-- 跟进记录表 -->
+  <!-- 跟进记录列表 -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
-      <th class="px-4 py-3">日期<br><span class="text-[12px] text-gray-400">Tanggal</span></th>
-      <th class="px-4 py-3">客户编码<br><span class="text-[12px] text-gray-400">Kode Pelanggan</span></th>
-      <th class="px-4 py-3">客户名称<br><span class="text-[12px] text-gray-400">Nama Pelanggan</span></th>
-      <th class="px-4 py-3">关联项目<br><span class="text-[12px] text-gray-400">Proyek Terkait</span></th>
-      <th class="px-4 py-3">跟进方式<br><span class="text-[12px] text-gray-400">Cara Tindak Lanjut</span></th>
-      <th class="px-4 py-3">跟进内容<br><span class="text-[12px] text-gray-400">Isi Tindak Lanjut</span></th>
-      <th class="px-4 py-3">客户反馈<br><span class="text-[12px] text-gray-400">Umpan Balik Pelanggan</span></th>
-      <th class="px-4 py-3">下次跟进<br><span class="text-[12px] text-gray-400">Tindak Lanjut Berikutnya</span></th>
-      <th class="px-4 py-3">跟进人<br><span class="text-[12px] text-gray-400">Penindak Lanjut</span></th>
-    </tr></thead><tbody id="followup-table-body" class="divide-y divide-gray-50">
-    </tbody></table></div>
+    <div id="followup-list-container" class="divide-y divide-gray-100">
+    </div>
     <div id="followup-pagination" class="p-4 border-t border-gray-100 text-sm text-gray-500">暂无跟进记录</div>
   </div>
 

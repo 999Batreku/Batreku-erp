@@ -23,12 +23,13 @@ module.exports = function(db) {
       const { customer_id, customer_grade, followup_type, keyword } = req.query;
       const viewer = await isViewer(req.user.id);
 
-      // 销售只能看自己录入客户的跟进记录
+      // 销售只能看自己创建的跟进记录；总监/总经理可看全部
+      // 兼容历史数据：created_by 为 NULL 的老记录也对非 viewer 可见
       let ownerFilter = '';
       const params = [];
       if (!viewer) {
-        ownerFilter = ' AND c.created_by = ?';
-        params.push(req.user.id);
+        ownerFilter = ' AND (f.created_by IS NULL OR f.created_by = ?)';
+        params.push(req.user.username);
       }
 
       let sql = `SELECT f.*, c.customer_code FROM customer_followups f LEFT JOIN customers c ON c.id = f.customer_id WHERE 1=1` + ownerFilter;
@@ -53,7 +54,15 @@ module.exports = function(db) {
   // GET /api/followups/customers
   router.get('/customers', async (req, res) => {
     try {
-      const customers = await db.all(`SELECT id, name, customer_code, grade FROM customers WHERE status = 1 AND customer_code IS NOT NULL AND customer_code != '' ORDER BY customer_code`, []);
+      const viewer = await isViewer(req.user.id);
+      let sql = `SELECT id, name, customer_code, grade FROM customers WHERE status = 1 AND customer_code IS NOT NULL AND customer_code != ''`;
+      const params = [];
+      if (!viewer) {
+        sql += ` AND (created_by IS NULL OR created_by = ?)`;
+        params.push(req.user.id);
+      }
+      sql += ` ORDER BY customer_code`;
+      const customers = await db.all(sql, params);
       res.json({ success: true, data: customers });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
@@ -73,7 +82,7 @@ module.exports = function(db) {
         INSERT INTO customer_followups (customer_id, customer_code, customer_name, customer_grade, followup_type, followup_date, next_followup_date, content, feedback, attachment, location_name, created_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        customer_id, customer_code || '', customer_name || '', customer_grade || '', followup_type || '', followup_date, next_followup_date || '', content || '', feedback || '', attachment || '', location_name || '', req.user?.username || ''
+        customer_id, customer_code || '', customer_name || '', customer_grade || '', followup_type || '', followup_date, next_followup_date || '', content || '', feedback || '', attachment || '', location_name || '', req.user.username
       ]);
 
       res.json({ success: true, data: { id: result.lastInsertRowid } });
