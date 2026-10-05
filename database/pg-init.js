@@ -530,11 +530,12 @@ async function ensureColumns() {
   await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT \'[]\'', []);
   await db.query('ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT \'[]\'', []);
   // inquiries 加审批字段
-  await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_ops'", []);
+  await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_tech'", []);
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT '[]'", []);
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approved_by INTEGER", []);
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_remark TEXT", []);
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_signature TEXT", []);
+  await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS tech_guidance TEXT", []);
   // logistics_orders 加审批字段与新字段
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_ops'", []);
   await db.query("ALTER TABLE logistics_orders ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT '[]'", []);
@@ -556,7 +557,7 @@ async function ensureColumns() {
   // 迁移：将旧的 'pending' 状态升级为 'pending_ops'（三级审批流）
   await db.query("UPDATE customers SET approval_status = 'pending_ops' WHERE approval_status = 'pending'", []);
   await db.query("UPDATE procurement_requests SET status = 'pending_ops' WHERE status = 'pending'", []);
-  await db.query("UPDATE inquiries SET approval_status = 'pending_ops' WHERE approval_status IS NULL OR approval_status = 'new'", []);
+  await db.query("UPDATE inquiries SET approval_status = 'pending_tech' WHERE approval_status IS NULL OR approval_status = 'new' OR approval_status = 'pending_ops'", []);
   await db.query("UPDATE logistics_orders SET approval_status = 'pending_ops' WHERE approval_status IS NULL OR approval_status = 'pending'", []);
 }
 
