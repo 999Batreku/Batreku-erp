@@ -39,29 +39,41 @@ module.exports = function(db) {
 
   // GET /api/customers?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm
   // 支持多状态查询：?approval_status=pending_ops&approval_status=pending_tech
+  // 数据权限：销售只能看自己录入的，运营总监/技术总监/总经理可看全部
   router.get('/', async (req, res) => {
     try {
+      const userRoles = await getUserRoles(req.user.id);
+      const isViewer = hasRole(userRoles, 'operations_director') || hasRole(userRoles, 'technical_director') || hasRole(userRoles, 'general_manager');
+      const whereClause = isViewer ? '' : ' WHERE created_by = ?';
+      const baseSql = 'SELECT * FROM customers' + whereClause;
+
       let customers;
       const statusFilter = req.query.approval_status;
       if (statusFilter) {
         const statuses = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
-        if (statuses.length === 1) {
+        const statusPlaceholders = statuses.map(function(){ return '?'; }).join(',');
+        const sql = baseSql
+          ? baseSql.replace('WHERE', 'WHERE approval_status IN (' + statusPlaceholders + ') AND')
+          : ' WHERE approval_status IN (' + statusPlaceholders + ')';
+        const params = isViewer ? statuses : [req.user.id].concat(statuses);
+        const finalSql = (baseSql ? baseSql + ' AND approval_status IN (' + statusPlaceholders + ')' : ' WHERE approval_status IN (' + statusPlaceholders + ')');
+        if (isViewer) {
           customers = await db.all(
-            'SELECT * FROM customers WHERE approval_status = ? ORDER BY id DESC',
-            [statuses[0]]
+            'SELECT * FROM customers WHERE approval_status IN (' + statusPlaceholders + ') ORDER BY id DESC',
+            statuses
           );
         } else {
-          const placeholders = statuses.map(function(){ return '?'; }).join(',');
           customers = await db.all(
-            'SELECT * FROM customers WHERE approval_status IN (' + placeholders + ') ORDER BY id DESC',
-            statuses
+            'SELECT * FROM customers WHERE created_by = ? AND approval_status IN (' + statusPlaceholders + ') ORDER BY id DESC',
+            [req.user.id].concat(statuses)
           );
         }
       } else {
-        customers = await db.all(
-          'SELECT * FROM customers ORDER BY id DESC',
-          []
-        );
+        if (isViewer) {
+          customers = await db.all('SELECT * FROM customers ORDER BY id DESC', []);
+        } else {
+          customers = await db.all('SELECT * FROM customers WHERE created_by = ? ORDER BY id DESC', [req.user.id]);
+        }
       }
       res.json({ success: true, data: customers });
     } catch (e) {
@@ -74,6 +86,12 @@ module.exports = function(db) {
     try {
       const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
       if (!customer) return res.json({ success: false, error: '客户不存在' });
+      // 数据权限：销售只能看自己录入的客户
+      const userRoles = await getUserRoles(req.user.id);
+      const isViewer = hasRole(userRoles, 'operations_director') || hasRole(userRoles, 'technical_director') || hasRole(userRoles, 'general_manager');
+      if (!isViewer && customer.created_by !== req.user.id) {
+        return res.status(403).json({ success: false, error: '无权查看此客户信息' });
+      }
       res.json({ success: true, data: customer });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
