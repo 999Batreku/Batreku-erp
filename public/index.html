@@ -1816,11 +1816,15 @@ function filterOutboundList() {
     var formSel = document.getElementById('fu-customer');
     if (formSel) {
       var curVal2 = formSel.value;
-      formSel.innerHTML = '<option value="">请选择客户 / Pilih pelanggan</option>';
+      formSel.innerHTML = '<option value="">请选择客户代码 / Pilih kode pelanggan</option>';
       customers.forEach(function(c) {
         var opt = document.createElement('option');
         opt.value = c.id;
-        opt.textContent = c.name || c.customer_code || ('客户#' + c.id);
+        var code = c.customer_code || '';
+        var name = c.name || '';
+        opt.textContent = code + (name ? ' — ' + name : '');
+        opt.setAttribute('data-code', code);
+        opt.setAttribute('data-name', name);
         opt.setAttribute('data-grade', c.grade || '');
         opt.setAttribute('data-locations', c.locations || '');
         formSel.appendChild(opt);
@@ -1934,11 +1938,13 @@ function filterOutboundList() {
     if (!followDate) { alert('请选择跟进日期 / Pilih tanggal tindak lanjut'); return; }
     if (!content || !content.trim()) { alert('请填写跟进内容 / Isi tindak lanjut wajib diisi'); return; }
 
-    var customerName = customerSel.options[customerSel.selectedIndex].textContent || '';
+    var customerName = customerSel.options[customerSel.selectedIndex].getAttribute('data-name') || '';
+    var customerCode = customerSel.options[customerSel.selectedIndex].getAttribute('data-code') || '';
     var customerGrade = customerSel.options[customerSel.selectedIndex].getAttribute('data-grade') || '';
 
     var payload = {
       customer_id: parseInt(customerSel.value),
+      customer_code: customerCode,
       customer_name: customerName,
       customer_grade: customerGrade,
       followup_type: followType,
@@ -2142,11 +2148,11 @@ function filterOutboundList() {
       <!-- 左侧列 -->
       <div class="space-y-5">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5">选择客户 <span class="text-red-500">*</span> <span class="text-xs text-gray-400 font-normal">/ Pilih Pelanggan</span></label>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">客户代码 <span class="text-red-500">*</span> <span class="text-xs text-gray-400 font-normal">/ Kode Pelanggan</span></label>
           <select id="fu-customer" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white" onchange="onFollowUpCustomerChange()">
-            <option value="">请选择客户 / Pilih pelanggan</option>
+            <option value="">请选择客户代码 / Pilih kode pelanggan</option>
           </select>
-          <p class="text-xs text-gray-400 mt-1">支持输入关键词搜索客户 / Ketik kata kunci untuk mencari pelanggan</p>
+          <p class="text-xs text-gray-400 mt-1">仅显示已有客户代码的客户 / Hanya pelanggan yang sudah punya kode</p>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">关联项目地点 <span class="text-xs text-gray-400 font-normal">/ Lokasi Proyek Terkait</span></label>
@@ -2157,7 +2163,7 @@ function filterOutboundList() {
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">跟进方式 <span class="text-red-500">*</span> <span class="text-xs text-gray-400 font-normal">/ Cara Tindak Lanjut</span></label>
-          <select class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+          <select id="fu-type" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
             <option value="">请选择跟进方式 / Pilih cara tindak lanjut</option>
             <option>上门拜访 Kunjungan / Kunjungan Langsung</option>
             <option>电话 Telepon / Telepon</option>
@@ -2168,11 +2174,11 @@ function filterOutboundList() {
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">跟进日期 <span class="text-red-500">*</span> <span class="text-xs text-gray-400 font-normal">/ Tanggal Tindak Lanjut</span></label>
-          <input type="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm" value="2025-06-15">
+          <input id="fu-date" type="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm" value="2025-06-15">
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">下次跟进日期 <span class="text-xs text-gray-400 font-normal">/ Tanggal Tindak Lanjut Berikutnya</span></label>
-          <input type="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm">
+          <input id="fu-next-date" type="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm">
         </div>
       </div>
 
@@ -2180,7 +2186,7 @@ function filterOutboundList() {
       <div class="space-y-5">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">跟进内容 <span class="text-red-500">*</span> <span class="text-xs text-gray-400 font-normal">/ Isi Tindak Lanjut</span></label>
-          <textarea rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm" placeholder="请描述本次跟进的主要内容... / Deskripsikan isi tindak lanjut ini..."></textarea>
+          <textarea id="fu-content" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm" placeholder="请描述本次跟进的主要内容... / Deskripsikan isi tindak lanjut ini..."></textarea>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">客户反馈 <span class="text-xs text-gray-400 font-normal">/ Umpan Balik Pelanggan</span></label>
