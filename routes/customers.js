@@ -87,6 +87,18 @@ module.exports = function(db) {
   // POST /api/customers
   router.post('/', async (req, res) => {
     try {
+      // 权限校验：只允许 sales / dept_manager / general_manager 对应后端角色新建客户
+      const allowedRoles = [
+        'sales_manager', 'sales_rep',              // sales
+        'procurement_manager', 'warehouse_manager', 'production_manager',
+        'finance_manager', 'hr_manager', 'accountant', // dept_manager
+        'general_manager'                            // general_manager
+      ];
+      const userRoles = req.user.roles || [];
+      if (!userRoles.some(r => allowedRoles.includes(r))) {
+        return res.status(403).json({ error: '当前角色无权新建客户，仅销售、部门经理和总经理可操作' });
+      }
+
       const {
         company_type, name, company, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
