@@ -2503,12 +2503,13 @@ function filterOutboundList() {
       <div><label class="block text-sm font-medium text-gray-700 mb-1">订单金额 (IDR) * <span class="text-xs text-gray-400">/ Jumlah Pesanan</span></label><input type="text" placeholder="如：850,000,000 / Mis: 850.000.000" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
       <div><label class="block text-sm font-medium text-gray-700 mb-1">付款方式 <span class="text-xs text-gray-400">/ Metode Pembayaran</span></label><input list="payment-method-list" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="选择或输入付款方式"><datalist id="payment-method-list"><option>30%首付+70%发货前付清 / DP 30% + 70% sebelum pengiriman</option><option>50%首付+50%验收后付清 / DP 50% + 50% setelah penerimaan</option><option>一次性全额付款 / Pembayaran penuh sekali saja</option><option>月结30天 / Tempo 30 hari</option><option>其他（备注说明） / Lainnya (catatan)</option></datalist></div>
       <div><label class="block text-sm font-medium text-gray-700 mb-1">预计交货日期 <span class="text-xs text-gray-400">/ Estimasi Tanggal Pengiriman</span></label><input type="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
-      <div><label class="block text-sm font-medium text-gray-700 mb-1">出库仓库 <span class="text-xs text-gray-400">/ Gudang Pengeluaran</span></label><select class="w-full px-4 py-2 border border-gray-300 rounded-lg"><option>BATREKU 雅加达仓 / Gudang Jakarta</option><option>BATREKU 泗水仓 / Gudang Surabaya</option><option>BATREKU 棉兰仓 / Gudang Medan</option><option>中国东莞工厂直发 / Kirim Langsung Pabrik Dongguan</option></select></div>
+      <div><label class="block text-sm font-medium text-gray-700 mb-1">出库仓库 <span class="text-xs text-gray-400">/ Gudang Pengeluaran</span></label><input list="warehouse-list" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="选择或输入出库仓库"><datalist id="warehouse-list"><option>BATREKU 雅加达仓 / Gudang Jakarta</option><option>BATREKU 泗水仓 / Gudang Surabaya</option><option>BATREKU 棉兰仓 / Gudang Medan</option><option>中国东莞工厂直发 / Kirim Langsung Pabrik Dongguan</option></datalist></div>
     </div>
     <h4 class="font-medium text-gray-700 mb-3">产品明细 <span class="text-xs text-gray-400">/ Detail Produk</span></h4>
-    <div class="overflow-x-auto mb-6"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase bg-gray-50"><th class="px-4 py-2">产品名称<br><span class="text-[12px] text-gray-400">Nama Produk</span></th><th class="px-4 py-2"规格型号 / Spesifikasi</th><th class="px-4 py-2">数量<br><span class="text-[12px] text-gray-400">Jumlah</span></th><th class="px-4 py-2">单价 (IDR)<br><span class="text-[12px] text-gray-400">Harga Satuan</span></th><th class="px-4 py-2">小计<br><span class="text-[12px] text-gray-400">Subtotal</span></th></tr></thead><tbody class="divide-y divide-gray-100">
-      <tr><td class="px-4 py-2"><input type="text" placeholder="产品名 / Nama produk" class="w-full px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="text" placeholder="规格 / Spesifikasi" class="w-full px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="number" placeholder="数量 / Jumlah" class="w-20 px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="text" placeholder="单价 / Harga satuan" class="w-28 px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2 text-sm text-gray-500">—</td></tr>
+    <div class="overflow-x-auto mb-6"><table class="w-full" id="order-products-table"><thead><tr class="text-left text-xs text-gray-500 uppercase bg-gray-50"><th class="px-4 py-2">产品名称<br><span class="text-[12px] text-gray-400">Nama Produk</span></th><th class="px-4 py-2">规格型号<br><span class="text-[12px] text-gray-400">Spesifikasi</span></th><th class="px-4 py-2">数量<br><span class="text-[12px] text-gray-400">Jumlah</span></th><th class="px-4 py-2">单价 (IDR)<br><span class="text-[12px] text-gray-400">Harga Satuan</span></th><th class="px-4 py-2">小计<br><span class="text-[12px] text-gray-400">Subtotal</span></th><th class="px-4 py-2">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody class="divide-y divide-gray-100">
+      <tr><td class="px-4 py-2"><input type="text" placeholder="产品名 / Nama produk" class="w-full px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="text" placeholder="规格 / Spesifikasi" class="w-full px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="number" placeholder="数量 / Jumlah" class="w-20 px-2 py-1 border border-gray-200 rounded text-sm" onchange="calcOrderSubtotal(this)"></td><td class="px-4 py-2"><input type="text" placeholder="单价 / Harga satuan" class="w-28 px-2 py-1 border border-gray-200 rounded text-sm" onchange="calcOrderSubtotal(this)"></td><td class="px-4 py-2 text-sm text-gray-500 subtotal-cell">—</td><td class="px-4 py-2"><button type="button" class="text-red-500 hover:text-red-700 text-xs" onclick="removeOrderProductRow(this)">删除</button></td></tr>
     </tbody></table></div>
+    <button type="button" class="text-sm text-brand-600 hover:underline mb-6" onclick="addOrderProductRow()">+ 增加项目 / Tambah Item</button>
     <div><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea rows="3" placeholder="订单备注信息（如特殊要求、交付条件等） / Catatan pesanan (persyaratan khusus, kondisi pengiriman, dll.)" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div>
     <div class="mt-6 flex gap-3"><button class="btn-primary" onclick="submitOrder('contract_pending')">创建订单<br><span class="text-[11px] text-gray-400">Buat Pesanan</span></button><button class="btn-secondary" onclick="navigateTo('order-list')">取消<br><span class="text-[11px] text-gray-400">Batal</span></button></div>
   </div>
@@ -7974,6 +7975,28 @@ function renderOrderTable() {
 }
 // 订单筛选
 function filterOrders() { renderOrderTable(); }
+
+// 订单产品明细行操作
+function addOrderProductRow() {
+  var tbody = document.querySelector('#order-products-table tbody');
+  if (!tbody) return;
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td class="px-4 py-2"><input type="text" placeholder="产品名 / Nama produk" class="w-full px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="text" placeholder="规格 / Spesifikasi" class="w-full px-2 py-1 border border-gray-200 rounded text-sm"></td><td class="px-4 py-2"><input type="number" placeholder="数量 / Jumlah" class="w-20 px-2 py-1 border border-gray-200 rounded text-sm" onchange="calcOrderSubtotal(this)"></td><td class="px-4 py-2"><input type="text" placeholder="单价 / Harga satuan" class="w-28 px-2 py-1 border border-gray-200 rounded text-sm" onchange="calcOrderSubtotal(this)"></td><td class="px-4 py-2 text-sm text-gray-500 subtotal-cell">—</td><td class="px-4 py-2"><button type="button" class="text-red-500 hover:text-red-700 text-xs" onclick="removeOrderProductRow(this)">删除</button></td>';
+  tbody.appendChild(tr);
+}
+function removeOrderProductRow(btn) {
+  var tbody = document.querySelector('#order-products-table tbody');
+  if (tbody && tbody.rows.length > 1) { btn.closest('tr').remove(); }
+  else { alert('至少保留一行产品明细'); }
+}
+function calcOrderSubtotal(input) {
+  var tr = input.closest('tr');
+  var qty = parseFloat(tr.querySelector('input[type="number"]').value) || 0;
+  var price = parseFloat(tr.querySelectorAll('input[type="text"]')[1].value.replace(/[^\d.]/g, '')) || 0;
+  var subtotal = qty * price;
+  var cell = tr.querySelector('.subtotal-cell');
+  if (cell) cell.textContent = subtotal > 0 ? 'IDR ' + subtotal.toLocaleString('id-ID') : '—';
+}
 
 // 提交新建订单
 async function submitOrder(status) {
