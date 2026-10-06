@@ -77,7 +77,7 @@ module.exports = function(db) {
       const no = outbound_no || 'OUT-' + Date.now();
       const result = await db.query(`
         INSERT INTO outbound_orders (outbound_no, warehouse_id, order_id, type, notes, created_by, entity_id, approval_status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_ops') RETURNING id
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_dept') RETURNING id
       `, [no, warehouse_id, order_id, type || 'sale', notes, req.user.id, entity_id || null]);
       res.json({ success: true, data: { id: result.rows[0].id }, message: '出库单创建成功' });
     } catch (e) {
@@ -122,9 +122,9 @@ module.exports = function(db) {
       const current = await db.get('SELECT approval_status FROM outbound_orders WHERE id = $1', [id]);
       if (!current) return res.status(404).json({ success: false, error: '出库单不存在' });
 
-      const flow = { pending_ops: 'dept_manager', pending_dept: 'ops_director', pending_tech: 'tech_director', pending_gm: 'gm' };
+      const flow = { pending_dept: 'dept_manager', pending_ops: 'ops_director', pending_tech: 'tech_director', pending_gm: 'gm' };
       const roleField = { dept_manager: 'approval_dept_manager', ops_director: 'approval_ops_director', tech_director: 'approval_tech_director', gm: 'approval_gm' };
-      const nextStatus = { pending_ops: 'pending_dept', pending_dept: 'pending_tech', pending_tech: 'pending_gm', pending_gm: 'approved' };
+      const nextStatus = { pending_dept: 'pending_ops', pending_ops: 'pending_tech', pending_tech: 'pending_gm', pending_gm: 'approved' };
 
       if (flow[current.approval_status] !== role) {
         return res.status(400).json({ success: false, error: '当前审批节点不匹配' });

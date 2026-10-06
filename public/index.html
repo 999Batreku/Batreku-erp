@@ -960,7 +960,7 @@ tailwind.config = {
     var data = res.data || [];
     var myRole = currentUser ? currentUser.role : '';
     // Filter by role: dept_manager sees pending_ops, ops_director sees pending_dept, tech_director sees pending_tech, gm sees pending_gm
-    var statusMap = { 'dept_manager':'pending_ops', 'operations_director':'pending_dept', 'tech_director':'pending_tech', 'general_manager':'pending_gm' };
+    var statusMap = { 'dept_manager':'pending_dept', 'operations_director':'pending_ops', 'tech_director':'pending_tech', 'general_manager':'pending_gm' };
     var targetStatus = statusMap[myRole];
     if (targetStatus) {
       data = data.filter(function(item){ return item.approval_status === targetStatus; });
@@ -976,8 +976,8 @@ tailwind.config = {
     var canApprove = myApprovalRole && role === myApprovalRole;
     var html = '';
     data.forEach(function(item){
-      var statusText = {'pending_ops':'待部门主管审批 / Menunggu Kepala Divisi','pending_dept':'待运营总监审批 / Menunggu Direktur Operasi','pending_tech':'待技术总监审批 / Menunggu Direktur Teknik','pending_gm':'待总经理审批 / Menunggu Direktur Utama','approved':'已批准 / Disetujui','rejected':'已拒绝 / Ditolak'};
-      var statusClass = {'pending_ops':'badge-yellow','pending_dept':'badge-yellow','pending_tech':'badge-blue','pending_gm':'badge-green','approved':'badge-green','rejected':'badge-red'};
+      var statusText = {'pending_dept':'待部门主管审批 / Menunggu Kepala Divisi','pending_ops':'待运营总监审批 / Menunggu Direktur Operasi','pending_tech':'待技术总监审批 / Menunggu Direktur Teknik','pending_gm':'待总经理审批 / Menunggu Direktur Utama','approved':'已批准 / Disetujui','rejected':'已拒绝 / Ditolak'};
+      var statusClass = {'pending_dept':'badge-yellow','pending_ops':'badge-yellow','pending_tech':'badge-blue','pending_gm':'badge-green','approved':'badge-green','rejected':'badge-red'};
       var entityName = item.entity_name || (item.entity_code === 'JOYFULL' ? 'PT JOYFULL' : 'PT PABRIK');
       html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">';
       html += '<div class="flex items-center justify-between mb-3"><div><span class="text-sm font-medium text-gray-700">' + (item.outbound_no || '') + '</span> <span class="text-xs text-gray-400 ml-2">' + entityName + '</span></div><span class="' + (statusClass[item.approval_status] || 'badge-gray') + '">' + (statusText[item.approval_status] || item.approval_status) + '</span></div>';
