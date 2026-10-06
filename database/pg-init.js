@@ -245,6 +245,7 @@ CREATE TABLE IF NOT EXISTS warehouses (
   location TEXT,
   manager TEXT,
   status INTEGER DEFAULT 1,
+  entity_id INTEGER REFERENCES entities(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -253,6 +254,7 @@ CREATE TABLE IF NOT EXISTS inventory (
   id SERIAL PRIMARY KEY,
   warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
   material_id INTEGER NOT NULL REFERENCES materials(id),
+  entity_id INTEGER REFERENCES entities(id),
   quantity DOUBLE PRECISION DEFAULT 0,
   reserved_quantity DOUBLE PRECISION DEFAULT 0,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -265,6 +267,7 @@ CREATE TABLE IF NOT EXISTS inbound_orders (
   inbound_no TEXT UNIQUE NOT NULL,
   warehouse_id INTEGER REFERENCES warehouses(id),
   procurement_id INTEGER REFERENCES procurement_requests(id),
+  entity_id INTEGER REFERENCES entities(id),
   type TEXT DEFAULT 'purchase',
   status TEXT DEFAULT 'pending',
   notes TEXT,
@@ -278,6 +281,7 @@ CREATE TABLE IF NOT EXISTS outbound_orders (
   outbound_no TEXT UNIQUE NOT NULL,
   warehouse_id INTEGER REFERENCES warehouses(id),
   order_id INTEGER REFERENCES orders(id),
+  entity_id INTEGER REFERENCES entities(id),
   type TEXT DEFAULT 'sale',
   status TEXT DEFAULT 'pending',
   notes TEXT,
@@ -614,6 +618,11 @@ async function ensureColumns() {
   await db.query("UPDATE procurement_requests SET status = 'pending_ops' WHERE status = 'pending'", []);
   await db.query("UPDATE inquiries SET approval_status = 'pending_tech' WHERE approval_status IS NULL OR approval_status = 'new' OR approval_status = 'pending_ops'", []);
   await db.query("UPDATE logistics_orders SET approval_status = 'pending_ops' WHERE approval_status IS NULL OR approval_status = 'pending'", []);
+  // 仓储相关表加 entity_id
+  await db.query('ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS entity_id INTEGER REFERENCES entities(id)', []);
+  await db.query('ALTER TABLE inventory ADD COLUMN IF NOT EXISTS entity_id INTEGER REFERENCES entities(id)', []);
+  await db.query('ALTER TABLE inbound_orders ADD COLUMN IF NOT EXISTS entity_id INTEGER REFERENCES entities(id)', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS entity_id INTEGER REFERENCES entities(id)', []);
 }
 
 // 幂等新增角色
@@ -623,6 +632,7 @@ async function ensureRoles() {
     ['aftersales_staff', '售后专员', '售后工单受理与跟进', 'L1'],
     ['maintenance_staff', '运维专员', '设备运维、现场巡检', 'L1'],
     ['warehouse_staff', '仓管员', '仓库出入库操作', 'L1'],
+    ['factory_director', '厂长', '工厂生产管理最高负责人', 'management'],
   ];
   for (const r of extraRoles) {
     await db.query(
@@ -632,7 +642,7 @@ async function ensureRoles() {
   }
 }
 
-// 幂等：确保三个实体 + factory 用户有 production_manager 角色
+// 幂等：确保三个实体 + factory 用户有 production_manager 角色 + 仓库实体分配
 async function ensureEntities() {
   const entities = [
     ['JTF', 'PT JOYFULL TECHNOLOGY INDONESIA', 'PT JOYFULL TECHNOLOGY INDONESIA', 'sales', 'PR-JTF'],
@@ -653,6 +663,22 @@ async function ensureEntities() {
     await db.query(
       'INSERT INTO user_roles (user_id, role_id) VALUES (?,?) ON CONFLICT DO NOTHING',
       [factory.id, pmRole.id]
+    );
+  }
+
+  // 分配现有仓库到实体：主仓库(Jakarta) → JTF, 深圳仓 → SZJ
+  const jtf = await db.get("SELECT id FROM entities WHERE code = 'JTF'", []);
+  const pfb = await db.get("SELECT id FROM entities WHERE code = 'PFB'", []);
+  const szj = await db.get("SELECT id FROM entities WHERE code = 'SZJ'", []);
+  if (jtf) await db.query('UPDATE warehouses SET entity_id = ? WHERE code = ? AND entity_id IS NULL', [jtf.id, 'WH-001']);
+  if (szj) await db.query('UPDATE warehouses SET entity_id = ? WHERE code = ? AND entity_id IS NULL', [szj.id, 'WH-002']);
+
+  // 创建工厂仓库（如不存在）
+  const factoryWh = await db.get("SELECT id FROM warehouses WHERE code = 'WH-PFB'", []);
+  if (!factoryWh && pfb) {
+    await db.query(
+      "INSERT INTO warehouses (name, code, location, status, entity_id) VALUES ('工厂仓库', 'WH-PFB', 'Indonesia Factory', 1, ?)",
+      [pfb.id]
     );
   }
 }
