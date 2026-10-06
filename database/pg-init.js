@@ -88,6 +88,17 @@ CREATE TABLE IF NOT EXISTS customers (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 实体表（多公司隔离）
+CREATE TABLE IF NOT EXISTS entities (
+  id SERIAL PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  name_id TEXT,
+  type TEXT NOT NULL,
+  purchase_prefix TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 供应商表
 CREATE TABLE IF NOT EXISTS suppliers (
   id SERIAL PRIMARY KEY,
@@ -123,6 +134,7 @@ CREATE TABLE IF NOT EXISTS materials (
   cost_price DOUBLE PRECISION DEFAULT 0,
   sell_price DOUBLE PRECISION DEFAULT 0,
   safety_stock DOUBLE PRECISION DEFAULT 0,
+  entity_id INTEGER REFERENCES entities(id),
   notes TEXT,
   status INTEGER DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -204,6 +216,8 @@ CREATE TABLE IF NOT EXISTS procurement_requests (
   currency TEXT DEFAULT 'IDR',
   status TEXT DEFAULT 'draft',
   supplier_id INTEGER REFERENCES suppliers(id),
+  entity_id INTEGER REFERENCES entities(id),
+  target_entity_id INTEGER REFERENCES entities(id),
   notes TEXT,
   created_by INTEGER REFERENCES users(id),
   approved_by INTEGER,
@@ -327,6 +341,42 @@ CREATE TABLE IF NOT EXISTS payment_records (
   payment_method TEXT,
   payment_date DATE,
   status TEXT DEFAULT 'confirmed',
+  entity_id INTEGER REFERENCES entities(id),
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 付款记录（采购付款，无需审批）
+CREATE TABLE IF NOT EXISTS outgoing_payments (
+  id SERIAL PRIMARY KEY,
+  entity_id INTEGER REFERENCES entities(id),
+  procurement_request_id INTEGER REFERENCES procurement_requests(id),
+  payment_no TEXT UNIQUE NOT NULL,
+  supplier_id INTEGER REFERENCES suppliers(id),
+  amount DOUBLE PRECISION DEFAULT 0,
+  currency TEXT DEFAULT 'IDR',
+  payment_method TEXT,
+  payment_date DATE,
+  bank_account TEXT,
+  reference_no TEXT,
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 销项发票
+CREATE TABLE IF NOT EXISTS invoices (
+  id SERIAL PRIMARY KEY,
+  entity_id INTEGER REFERENCES entities(id),
+  order_id INTEGER REFERENCES orders(id),
+  invoice_no TEXT UNIQUE NOT NULL,
+  customer_id INTEGER REFERENCES customers(id),
+  amount DOUBLE PRECISION DEFAULT 0,
+  tax_amount DOUBLE PRECISION DEFAULT 0,
+  invoice_date DATE,
+  invoice_type TEXT DEFAULT 'output',
+  invoice_number TEXT,
   notes TEXT,
   created_by INTEGER REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -441,6 +491,7 @@ const rolesData = [
   ['hr_manager', '人事主管', '人事管理', 'management'],
   ['viewer', '只读用户', '仅查看权限', 'management'],
   ['operations_director', '运营总监', '负责客户审批、客户编码发放及整体运营管理', 'management'],
+  ['factory_director', '厂长', '工厂生产管理最高负责人', 'management'],
 ];
 
 const usersData = [
@@ -452,6 +503,7 @@ const usersData = [
   ['warehouse1', 'wh123', 'Agus', 'agus@batreku.com', 'warehouse_manager', '仓库主管'],
   ['finance1', 'finance123', 'Lisa', 'lisa@batreku.com', 'finance_manager', '财务主管'],
   ['ops', 'ops123', '运营总监', 'ops@batreku.com', 'operations_director', '运营总监'],
+  ['factory', 'factory321', 'Pabrik Director', 'factory@batreku.com', 'factory_director', '厂长'],
 ];
 
 const cats = [
@@ -580,10 +632,36 @@ async function ensureRoles() {
   }
 }
 
+// 幂等：确保三个实体 + factory 用户有 production_manager 角色
+async function ensureEntities() {
+  const entities = [
+    ['JTF', 'PT JOYFULL TECHNOLOGY INDONESIA', 'PT JOYFULL TECHNOLOGY INDONESIA', 'sales', 'PR-JTF'],
+    ['PFB', 'PT BATREKU PABRIK BATERAI', 'PT BATREKU PABRIK BATERAI', 'factory', 'PR-PFB'],
+    ['SZJ', 'SZ JOYFULL', 'SZ JOYFULL', 'supply_chain', 'PR-SZJ'],
+  ];
+  for (const e of entities) {
+    await db.query(
+      `INSERT INTO entities (code, name, name_id, type, purchase_prefix)
+       VALUES (?,?,?,?,?) ON CONFLICT (code) DO NOTHING`, e
+    );
+  }
+
+  // factory 用户补 production_manager 角色
+  const factory = await db.get("SELECT id FROM users WHERE username = 'factory'", []);
+  const pmRole = await db.get("SELECT id FROM roles WHERE name = 'production_manager'", []);
+  if (factory && pmRole) {
+    await db.query(
+      'INSERT INTO user_roles (user_id, role_id) VALUES (?,?) ON CONFLICT DO NOTHING',
+      [factory.id, pmRole.id]
+    );
+  }
+}
+
 async function initDatabase() {
   await db.query(DDL, []);
   await ensureColumns();
   await ensureRoles();
+  await ensureEntities();
 
   // 生产环境保护：SEED_DATA=false 时永不写入种子数据，防止已录入数据被覆盖
   if (process.env.SEED_DATA === 'false') {

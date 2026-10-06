@@ -2697,10 +2697,17 @@ function filterOutboundList() {
 <!-- ===== PURCHASE REQUEST LIST ===== -->
 <div id="page-purchase-request" class="page fade-in">
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2"><h3 class="text-lg font-semibold text-gray-800">采购申请列表</h3><button class="btn-primary" onclick="navigateTo('purchase-new')">+ 新建采购申请<br><span class="text-[11px] text-gray-400">+ Tambah Permohonan Pembelian</span></button></div>
-  <p class="text-sm text-gray-500 mb-5">采购申请分两阶段：📋 预采购申请（预估价，待询价）→ 📄 正式采购申请（确定价格，审批后生成PO）</p>
+  <p class="text-sm text-gray-500 mb-3">采购申请分两阶段：📋 预采购申请（预估价，待询价）→ 📄 正式采购申请（确定价格，审批后生成PO）</p>
+  <!-- 实体筛选 Tab -->
+  <div class="flex flex-wrap gap-2 mb-4" id="procurement-entity-tabs">
+    <button class="px-4 py-1.5 text-sm rounded-full bg-brand-600 text-white font-medium entity-tab active" data-entity="" onclick="filterProcurementByEntity(this)">全部实体</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="1" onclick="filterProcurementByEntity(this)">🏢 PT JOYFULL</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="2" onclick="filterProcurementByEntity(this)">🏭 PT BATREKU</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="3" onclick="filterProcurementByEntity(this)">🔗 SZ JOYFULL</button>
+  </div>
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
     <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3"><input type="text" id="purchase-search" placeholder="搜索申请单号/品类... / Cari no. permohonan/kategori..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterPurchases()"><select id="purchase-status-filter" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterPurchases()"><option value="">全部状态 / Semua Status</option><option value="pending_ops">待运营总监审批 / Menunggu Dir. Operasi</option><option value="pending_tech">待技术总监审批 / Menunggu Dir. Teknik</option><option value="pending_gm">待总经理审批 / Menunggu Dir. Umum</option><option value="quoted">已询价 / Sudah Ditawarkan</option><option value="approved">已审批 / Sudah Disetujui</option><option value="rejected">已驳回 / Ditolak</option><option value="completed">已完成 / Selesai</option></select></div>
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">申请单号<br><span class="text-[12px] text-gray-400">No. Permohonan</span></th><th class="px-5 py-3">类型<br><span class="text-[12px] text-gray-400">Jenis</span></th><th class="px-5 py-3">品类<br><span class="text-[12px] text-gray-400">Kategori</span></th><th class="px-5 py-3">申请人<br><span class="text-[12px] text-gray-400">Pemohon</span></th><th class="px-5 py-3">申请日期<br><span class="text-[12px] text-gray-400">Tanggal Permohonan</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="purchase-table-body" class="divide-y divide-gray-50">
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">申请单号<br><span class="text-[12px] text-gray-400">No. Permohonan</span></th><th class="px-5 py-3">所属实体<br><span class="text-[12px] text-gray-400">Entitas</span></th><th class="px-5 py-3">类型<br><span class="text-[12px] text-gray-400">Jenis</span></th><th class="px-5 py-3">品类<br><span class="text-[12px] text-gray-400">Kategori</span></th><th class="px-5 py-3">申请人<br><span class="text-[12px] text-gray-400">Pemohon</span></th><th class="px-5 py-3">申请日期<br><span class="text-[12px] text-gray-400">Tanggal Permohonan</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="purchase-table-body" class="divide-y divide-gray-50">
     </tbody></table></div>
     <div id="purchase-pagination" class="px-5 py-3 text-xs text-gray-500"></div>
   </div>
@@ -2737,8 +2744,11 @@ function filterOutboundList() {
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+      <div><label class="block text-sm font-medium text-gray-700 mb-1">所属实体 * <span class="text-xs text-gray-400">/ Entitas</span></label><select id="purchase-entity-select" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"><option value="">请选择采购实体</option><option value="1">🏢 PT JOYFULL TECHNOLOGY INDONESIA</option><option value="2">🏭 PT BATREKU PABRIK BATERAI</option><option value="3">🔗 SZ JOYFULL</option></select></div>
       <div><label class="block text-sm font-medium text-gray-700 mb-1">品类选择 * <span class="text-xs text-gray-400">/ Pilih Kategori</span></label><select class="w-full px-4 py-2 border border-gray-300 rounded-lg"><option>常规备货 / Stok Reguler</option><option>储能制造备货 / Stok Manufaktur ESS</option></select></div>
       <div><label class="block text-sm font-medium text-gray-700 mb-1">关联预采购单（选填） <span class="text-xs text-gray-400">/ Pra-Pesanan Pembelian Terkait (opsional)</span></label><input type="text" placeholder="如 PR-2025-030（从预采购单转入时自动填充） / Misal PR-2025-030 (diisi otomatis dari pra-pesanan)" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"></div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
       <div><label class="block text-sm font-medium text-gray-700 mb-1">申请人 <span class="text-xs text-gray-400">/ Pemohon</span></label><input type="text" value="Ahmad Wijaya" readonly class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50"></div>
     </div>
     <h4 class="font-medium text-gray-700 mb-3">物料明细 <span class="text-xs text-gray-400">/ Detail Material</span></h4>
@@ -3603,7 +3613,14 @@ function filterOutboundList() {
 
 <!-- ===== FINANCE PAYMENT ===== -->
 <div id="page-finance-payment" class="page fade-in">
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6"><h3 class="text-lg font-semibold text-gray-800">收款记录 <span class="text-xs text-gray-400 font-normal">/ Catatan Penerimaan Pembayaran</span></h3><button class="btn-primary" onclick="navigateTo('finance-payment-new')">+ 确认收款<br><span class="text-[11px] text-gray-400">+ Konfirmasi Penerimaan</span></button></div>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4"><h3 class="text-lg font-semibold text-gray-800">收款记录 <span class="text-xs text-gray-400 font-normal">/ Catatan Penerimaan Pembayaran</span></h3><button class="btn-primary" onclick="navigateTo('finance-payment-new')">+ 确认收款<br><span class="text-[11px] text-gray-400">+ Konfirmasi Penerimaan</span></button></div>
+  <!-- 实体筛选 Tab -->
+  <div class="flex flex-wrap gap-2 mb-4" id="receipt-entity-tabs">
+    <button class="px-4 py-1.5 text-sm rounded-full bg-brand-600 text-white font-medium entity-tab active" data-entity="" onclick="filterFinanceByEntity('receipt', this)">全部实体</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="1" onclick="filterFinanceByEntity('receipt', this)">🏢 PT JOYFULL</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="2" onclick="filterFinanceByEntity('receipt', this)">🏭 PT BATREKU</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="3" onclick="filterFinanceByEntity('receipt', this)">🔗 SZ JOYFULL</button>
+  </div>
 
   <!-- 数据来源说明 -->
   <div class="bg-blue-50/60 rounded-lg p-3 border border-blue-100 mb-5">
@@ -3620,7 +3637,7 @@ function filterOutboundList() {
 
   <div class="p-4 border-b border-gray-100 flex flex-wrap gap-3 bg-white rounded-t-xl"><input type="text" id="payment-filter-search" placeholder="搜索收款单号/客户名称... / Cari no. penerimaan/nama pelanggan..." class="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterPaymentList()"><select id="payment-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterPaymentList()"><option value="">全部状态 / Semua Status</option><option value="未收款">未收款 / Belum Dibayar</option><option value="部分收款">部分收款 / Sebagian Dibayar</option><option value="已收清">已收清 / Lunas</option></select></div>
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">收款编号<br><span class="text-[12px] text-gray-400">No. Penerimaan</span></th><th class="px-5 py-3">关联订单<br><span class="text-[12px] text-gray-400">Pesanan Terkait</span></th><th class="px-5 py-3">客户<br><span class="text-[12px] text-gray-400">Pelanggan</span></th><th class="px-5 py-3">应收金额<br><span class="text-[12px] text-gray-400">Jumlah Piutang</span></th><th class="px-5 py-3">已收金额<br><span class="text-[12px] text-gray-400">Jumlah Diterima</span></th><th class="px-5 py-3">收款方式<br><span class="text-[12px] text-gray-400">Metode Penerimaan</span></th><th class="px-5 py-3">收款日期<br><span class="text-[12px] text-gray-400">Tanggal Penerimaan</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody class="divide-y divide-gray-50">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">收款编号<br><span class="text-[12px] text-gray-400">No. Penerimaan</span></th><th class="px-5 py-3">所属实体<br><span class="text-[12px] text-gray-400">Entitas</span></th><th class="px-5 py-3">关联订单<br><span class="text-[12px] text-gray-400">Pesanan Terkait</span></th><th class="px-5 py-3">客户<br><span class="text-[12px] text-gray-400">Pelanggan</span></th><th class="px-5 py-3">应收金额<br><span class="text-[12px] text-gray-400">Jumlah Piutang</span></th><th class="px-5 py-3">已收金额<br><span class="text-[12px] text-gray-400">Jumlah Diterima</span></th><th class="px-5 py-3">收款方式<br><span class="text-[12px] text-gray-400">Metode Penerimaan</span></th><th class="px-5 py-3">收款日期<br><span class="text-[12px] text-gray-400">Tanggal Penerimaan</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody class="divide-y divide-gray-50">
     <tr class="hover:bg-gray-50" data-status="部分收款"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">PAY-2025-022</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-001</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Surya Energi</td><td class="px-5 py-3.5 text-sm">IDR 850M</td><td class="px-5 py-3.5 text-sm font-medium">IDR 510M</td><td class="px-5 py-3.5 text-sm text-gray-500">银行转账</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-05-22</td><td class="px-5 py-3.5"><span class="badge badge-yellow">部分收款</span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-2" onclick="openPaymentConfirm(this)">确认收款 <span class="text-xs opacity-80">/ Konfirmasi Pembayaran</span></button><button class="text-gray-500 text-sm hover:underline" onclick="viewVoucher('PAY-2025-022')">查看凭证<br><span class="text-[11px] text-gray-400">Lihat Dokumen</span></button></td></tr>
     <tr class="hover:bg-gray-50" data-status="已收清"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">PAY-2025-021</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-002</td><td class="px-5 py-3.5 text-sm text-gray-700">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm">IDR 320M</td><td class="px-5 py-3.5 text-sm font-medium">IDR 320M</td><td class="px-5 py-3.5 text-sm text-gray-500">银行转账</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-05-18</td><td class="px-5 py-3.5"><span class="badge badge-green">已收清</span></td><td class="px-5 py-3.5"><button class="text-gray-400 text-sm mr-2 cursor-not-allowed">确认收款 <span class="text-xs opacity-80">/ Konfirmasi Pembayaran</span></button><button class="text-gray-500 text-sm hover:underline" onclick="viewVoucher('PAY-2025-021')">查看凭证<br><span class="text-[11px] text-gray-400">Lihat Dokumen</span></button></td></tr>
     <tr class="hover:bg-gray-50" data-status="部分收款"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">PAY-2025-020</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-003</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Mega Solar Indonesia</td><td class="px-5 py-3.5 text-sm">IDR 1,200M</td><td class="px-5 py-3.5 text-sm font-medium">IDR 360M</td><td class="px-5 py-3.5 text-sm text-gray-500">银行转账</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-03</td><td class="px-5 py-3.5"><span class="badge badge-yellow">部分收款</span></td><td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-2" onclick="openPaymentConfirm(this)">确认收款 <span class="text-xs opacity-80">/ Konfirmasi Pembayaran</span></button><button class="text-gray-500 text-sm hover:underline" onclick="viewVoucher('PAY-2025-020')">查看凭证<br><span class="text-[11px] text-gray-400">Lihat Dokumen</span></button></td></tr>
@@ -3665,9 +3682,57 @@ function filterOutboundList() {
   </div>
 </div>
 
+<!-- ===== FINANCE PAYMENT OUT (付款记录) ===== -->
+<div id="page-finance-payment-out" class="page fade-in">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4"><h3 class="text-lg font-semibold text-gray-800">付款记录 <span class="text-xs text-gray-400 font-normal">/ Catatan Pembayaran Keluar</span></h3><button class="btn-primary" onclick="navigateTo('finance-payment-out-new')">+ 新增付款<br><span class="text-[11px] text-gray-400">+ Tambah Pembayaran</span></button></div>
+  <!-- 实体筛选 Tab -->
+  <div class="flex flex-wrap gap-2 mb-4" id="payment-out-entity-tabs">
+    <button class="px-4 py-1.5 text-sm rounded-full bg-brand-600 text-white font-medium entity-tab active" data-entity="" onclick="filterFinanceByEntity('paymentout', this)">全部实体</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="1" onclick="filterFinanceByEntity('paymentout', this)">🏢 PT JOYFULL</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="2" onclick="filterFinanceByEntity('paymentout', this)">🏭 PT BATREKU</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="3" onclick="filterFinanceByEntity('paymentout', this)">🔗 SZ JOYFULL</button>
+  </div>
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">付款编号<br><span class="text-[12px] text-gray-400">No. Pembayaran</span></th><th class="px-5 py-3">所属实体<br><span class="text-[12px] text-gray-400">Entitas</span></th><th class="px-5 py-3">关联采购单<br><span class="text-[12px] text-gray-400">No. Pembelian</span></th><th class="px-5 py-3">供应商<br><span class="text-[12px] text-gray-400">Pemasok</span></th><th class="px-5 py-3">付款金额<br><span class="text-[12px] text-gray-400">Jumlah</span></th><th class="px-5 py-3">付款方式<br><span class="text-[12px] text-gray-400">Metode</span></th><th class="px-5 py-3">付款日期<br><span class="text-[12px] text-gray-400">Tanggal</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody id="payment-out-table-body" class="divide-y divide-gray-50">
+    </tbody></table></div>
+  </div>
+</div>
+
+<!-- ===== FINANCE PAYMENT OUT NEW (新增付款) ===== -->
+<div id="page-finance-payment-out-new" class="page fade-in">
+  <div class="max-w-3xl mx-auto">
+    <button class="text-gray-500 hover:text-gray-700 mb-4" onclick="navigateTo('finance-payment-out')">← 返回<br><span class="text-[11px] text-gray-400">← Kembali</span></button>
+    <h3 class="text-lg font-semibold text-gray-800 mb-4">新增付款 <span class="text-xs text-gray-400 font-normal">/ Tambah Pembayaran Keluar</span></h3>
+    <div class="bg-blue-50/60 rounded-lg p-3 border border-blue-100 mb-5">
+      <p class="text-xs text-blue-700"><strong>📌 说明：</strong>付款记录关联采购单，财务直接录入，无需审批流程。付款完成后自动更新采购单状态。</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">所属实体 * <span class="text-xs text-gray-400">/ Entitas</span></label><select id="payment-out-entity" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"><option value="">请选择实体</option><option value="1">🏢 PT JOYFULL TECHNOLOGY INDONESIA</option><option value="2">🏭 PT BATREKU PABRIK BATERAI</option><option value="3">🔗 SZ JOYFULL</option></select></div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">关联采购单 * <span class="text-xs text-gray-400">/ No. Pembelian Terkait</span></label><select id="payment-out-procurement" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"><option value="">请选择采购单</option></select></div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">供应商 <span class="text-xs text-gray-400">/ Pemasok</span></label><input id="payment-out-supplier" type="text" placeholder="供应商名称" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"></div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">付款金额 * <span class="text-xs text-gray-400">/ Jumlah Pembayaran</span></label><input id="payment-out-amount" type="number" placeholder="请输入金额" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"></div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">付款方式 * <span class="text-xs text-gray-400">/ Metode Pembayaran</span></label><select id="payment-out-method" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"><option>银行转账 / Transfer Bank</option><option>现金 / Tunai</option><option>支票 / Cek</option><option>信用证 / L/C</option><option>其他 / Lainnya</option></select></div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">付款日期 * <span class="text-xs text-gray-400">/ Tanggal Pembayaran</span></label><input id="payment-out-date" type="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"></div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">银行账户 <span class="text-xs text-gray-400">/ Rekening Bank</span></label><input id="payment-out-bank" type="text" placeholder="收款方银行账户" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"></div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">参考号 <span class="text-xs text-gray-400">/ No. Referensi</span></label><input id="payment-out-ref" type="text" placeholder="转账流水号/凭证号" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"></div>
+      </div>
+      <div class="mb-5"><label class="block text-sm font-medium text-gray-700 mb-1">备注 <span class="text-xs text-gray-400">/ Catatan</span></label><textarea id="payment-out-notes" rows="3" placeholder="付款备注..." class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"></textarea></div>
+      <div class="flex gap-3 mt-6"><button class="btn-primary" onclick="submitPaymentOut()">确认付款 <span class="text-xs opacity-80">/ Konfirmasi Pembayaran</span></button><button class="btn-secondary" onclick="navigateTo('finance-payment-out')">取消<br><span class="text-[11px] text-gray-400">Batal</span></button></div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== FINANCE INVOICE ===== -->
 <div id="page-finance-invoice" class="page fade-in">
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6"><h3 class="text-lg font-semibold text-gray-800">开票记录 <span class="text-xs text-gray-400 font-normal">/ Catatan Faktur</span></h3><button class="btn-primary" onclick="navigateTo('finance-invoice-new')">+ 申请开票<br><span class="text-[11px] text-gray-400">+ Tambah Permintaan Faktur</span></button></div>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4"><h3 class="text-lg font-semibold text-gray-800">销项发票 <span class="text-xs text-gray-400 font-normal">/ Faktur Penjualan</span></h3><button class="btn-primary" onclick="navigateTo('finance-invoice-new')">+ 新增发票<br><span class="text-[11px] text-gray-400">+ Tambah Faktur</span></button></div>
+  <!-- 实体筛选 Tab -->
+  <div class="flex flex-wrap gap-2 mb-4" id="invoice-entity-tabs">
+    <button class="px-4 py-1.5 text-sm rounded-full bg-brand-600 text-white font-medium entity-tab active" data-entity="" onclick="filterFinanceByEntity('invoice', this)">全部实体</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="1" onclick="filterFinanceByEntity('invoice', this)">🏢 PT JOYFULL</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="2" onclick="filterFinanceByEntity('invoice', this)">🏭 PT BATREKU</button>
+    <button class="px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab" data-entity="3" onclick="filterFinanceByEntity('invoice', this)">🔗 SZ JOYFULL</button>
+  </div>
 
   <!-- 数据来源说明 -->
   <div class="bg-blue-50/60 rounded-lg p-3 border border-blue-100 mb-5">
@@ -3684,7 +3749,7 @@ function filterOutboundList() {
 
   <div class="p-4 border-b border-gray-100 flex flex-wrap gap-3 bg-white rounded-t-xl"><input type="text" id="invoice-filter-search" placeholder="搜索发票号/客户名称... / Cari no. faktur/nama pelanggan..." class="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterInvoiceList()"><select id="invoice-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterInvoiceList()"><option value="">全部状态 / Semua Status</option><option value="待开票">待开票 / Menunggu Faktur</option><option value="已开票">已开票 / Sudah Difaktur</option><option value="已送达">已送达 / Sudah Tiba</option></select></div>
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">发票编号<br><span class="text-[12px] text-gray-400">No. Faktur</span></th><th class="px-5 py-3">关联订单<br><span class="text-[12px] text-gray-400">Pesanan Terkait</span></th><th class="px-5 py-3">客户<br><span class="text-[12px] text-gray-400">Pelanggan</span></th><th class="px-5 py-3">开票金额<br><span class="text-[12px] text-gray-400">Jumlah Faktur</span></th><th class="px-5 py-3">开票日期<br><span class="text-[12px] text-gray-400">Tanggal Faktur</span></th><th class="px-5 py-3">发票类型<br><span class="text-[12px] text-gray-400">Jenis Faktur</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody class="divide-y divide-gray-50">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">发票编号<br><span class="text-[12px] text-gray-400">No. Faktur</span></th><th class="px-5 py-3">所属实体<br><span class="text-[12px] text-gray-400">Entitas</span></th><th class="px-5 py-3">关联订单<br><span class="text-[12px] text-gray-400">Pesanan Terkait</span></th><th class="px-5 py-3">客户<br><span class="text-[12px] text-gray-400">Pelanggan</span></th><th class="px-5 py-3">开票金额<br><span class="text-[12px] text-gray-400">Jumlah Faktur</span></th><th class="px-5 py-3">开票日期<br><span class="text-[12px] text-gray-400">Tanggal Faktur</span></th><th class="px-5 py-3">发票类型<br><span class="text-[12px] text-gray-400">Jenis Faktur</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th><th class="px-5 py-3">操作<br><span class="text-[12px] text-gray-400">Aksi</span></th></tr></thead><tbody class="divide-y divide-gray-50">
     <tr class="hover:bg-gray-50" data-status="已送达"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">INV-2025-018</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-001</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Surya Energi</td><td class="px-5 py-3.5 text-sm font-medium">IDR 850,000,000</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15</td><td class="px-5 py-3.5"><span class="badge badge-blue">VAT</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已送达</span></td><td class="px-5 py-3.5"><button class="text-gray-500 text-sm hover:underline">查看<br><span class="text-[11px] text-gray-400">Lihat</span></button></td></tr>
     <tr class="hover:bg-gray-50" data-status="已送达"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">INV-2025-017</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-002</td><td class="px-5 py-3.5 text-sm text-gray-700">CV Nusantara Power</td><td class="px-5 py-3.5 text-sm font-medium">IDR 320,000,000</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-12</td><td class="px-5 py-3.5"><span class="badge badge-blue">VAT</span></td><td class="px-5 py-3.5"><span class="badge badge-green">已送达</span></td><td class="px-5 py-3.5"><button class="text-gray-500 text-sm hover:underline">查看<br><span class="text-[11px] text-gray-400">Lihat</span></button></td></tr>
     <tr class="hover:bg-gray-50" data-status="已开票"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">INV-2025-016</td><td class="px-5 py-3.5 text-sm font-mono text-gray-500">ORD-2025-003</td><td class="px-5 py-3.5 text-sm text-gray-700">PT Mega Solar Indonesia</td><td class="px-5 py-3.5 text-sm font-medium">IDR 360,000,000</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-03</td><td class="px-5 py-3.5"><span class="badge badge-green">预付款发票</span></td><td class="px-5 py-3.5"><span class="badge badge-yellow">已开票</span></td><td class="px-5 py-3.5"><button class="text-gray-500 text-sm hover:underline">查看<br><span class="text-[11px] text-gray-400">Lihat</span></button></td></tr>
@@ -5145,7 +5210,9 @@ var GM_ADMIN_CONFIG = {
   'production-plan':    {module:'production', label:'生产计划', reload:function(){ loadProductionData().then(function(){ renderProductionPlanTable(); }); }},
   'production-material':{module:'production', label:'生产物料', reload:function(){ loadProductionData().then(function(){ renderMaterialRequestTable(); }); }},
   'finance-payment':    {module:'payments', label:'收款记录', reload:function(){ loadFinanceData().then(function(){ renderPaymentTable(); }); }},
-  'finance-invoice':    {module:'payments', label:'发票管理', reload:function(){ loadFinanceData().then(function(){ renderInvoiceTable(); }); }},
+  'finance-payment-out': {module:'payments', label:'付款记录', reload:function(){ loadFinanceData().then(function(){ renderPaymentOutTable(); }); }},
+  'finance-payment-out-new': {module:'payments', label:'新增付款'},
+  'finance-invoice':    {module:'payments', label:'销项发票', reload:function(){ loadFinanceData().then(function(){ renderInvoiceTable(); }); }},
   'finance-voucher':    {module:'payments', label:'凭证管理', reload:function(){ loadFinanceData().then(function(){ renderVoucherTable(); }); }},
   'admin-hr-employee':  {module:'employees', label:'员工档案', reload:function(){ loadEmployeeData().then(function(){ renderEmployeeTable(); }); }},
   // 纯演示数据模块（仅当前页面生效）
@@ -5860,8 +5927,10 @@ var navStructure = [
   { id:'finance', icon:'\u{1F4B3}', label:{zh:'\u8D22\u52A1\u7BA1\u7406',id:'Keuangan'}, stage:{zh:'\u4E09',id:'III'}, children:[
     { label:{zh:'\u6536\u6B3E\u8BB0\u5F55',id:'Penerimaan'}, page:'finance-payment' },
     { label:{zh:'\u786E\u8BA4\u6536\u6B3E',id:'Konfirmasi Bayar'}, page:'finance-payment-new' },
-    { label:{zh:'\u5F00\u7968\u8BB0\u5F55',id:'Faktur'}, page:'finance-invoice' },
-    { label:{zh:'\u7533\u8BF7\u5F00\u7968',id:'Ajukan Faktur'}, page:'finance-invoice-new' },
+    { label:{zh:'\u4ED8\u6B3E\u8BB0\u5F55',id:'Pembayaran Keluar'}, page:'finance-payment-out' },
+    { label:{zh:'\u65B0\u589E\u4ED8\u6B3E',id:'Tambah Pembayaran'}, page:'finance-payment-out-new' },
+    { label:{zh:'\u9500\u9879\u53D1\u7968',id:'Faktur Penjualan'}, page:'finance-invoice' },
+    { label:{zh:'\u65B0\u589E\u53D1\u7968',id:'Tambah Faktur'}, page:'finance-invoice-new' },
     { label:{zh:'\u51ED\u8BC1\u7BA1\u7406',id:'Dokumen'}, page:'finance-voucher' },
   ]},
   { id:'dashboard-data', icon:'\u{1F4C8}', label:{zh:'\u6570\u636E\u770B\u677F',id:'Dasbor Data'}, stage:{zh:'\u56DB',id:'IV'}, children:[
@@ -5923,10 +5992,12 @@ var pageTitles = {
   'production-progress': {zh:'\u751F\u4EA7\u8FDB\u5EA6',id:'Progres Produksi'},
   'material-request': {zh:'\u9886\u6599\u7533\u8BF7',id:'Pengajuan Material'},
   'production-material': {zh:'\u9886\u6599\u8BB0\u5F55',id:'Catatan Material'},
-  'finance-payment': {zh:'\u6536\u6B3E\u8BB0\u5F55',id:'Penerimaan Pembayaran'},
-  'finance-payment-new': {zh:'\u786E\u8BA4\u6536\u6B3E',id:'Konfirmasi Pembayaran'},
-  'finance-invoice': {zh:'\u5F00\u7968\u8BB0\u5F55',id:'Catatan Faktur'},
-  'finance-invoice-new': {zh:'\u7533\u8BF7\u5F00\u7968',id:'Ajukan Faktur'},
+  'finance-payment': {zh:'收款记录',id:'Penerimaan Pembayaran'},
+  'finance-payment-new': {zh:'确认收款',id:'Konfirmasi Pembayaran'},
+  'finance-payment-out': {zh:'付款记录',id:'Catatan Pembayaran Keluar'},
+  'finance-payment-out-new': {zh:'新增付款',id:'Tambah Pembayaran Keluar'},
+  'finance-invoice': {zh:'销项发票',id:'Faktur Penjualan'},
+  'finance-invoice-new': {zh:'新增发票',id:'Tambah Faktur'},
   'finance-voucher': {zh:'\u51ED\u8BC1\u7BA1\u7406',id:'Manajemen Dokumen'},
   'data-overview': {zh:'\u7ECF\u8425\u6982\u89C8',id:'Ikhtisar Bisnis'},
   'data-purchase': {zh:'\u91C7\u8D2D\u770B\u677F',id:'Dasbor Pembelian'},
@@ -6366,8 +6437,11 @@ async function submitPurchaseRequest() {
     }
   });
   if (items.length === 0) { alert('\u8bf7\u6dfb\u52a0\u81f3\u5c11\u4e00\u4e2a\u7269\u6599'); return; }
+  var entitySel = document.getElementById('purchaseEntitySelect');
+  var entityId = entitySel ? parseInt(entitySel.value) : null;
   var payload = {
     type: 'formal',
+    entity_id: entityId,
     category: category,
     requester_id: currentUser.userId || 1,
     notes: remarksText,
@@ -6932,6 +7006,10 @@ async function submitPayment() {
 
 function viewVoucher(payId) {
   navigateTo('finance-voucher');
+}
+
+function viewPaymentOut(id) {
+  alert('查看付款详情 / Lihat detail pembayaran: #' + id);
 }
 
 function onPaymentOrderChange(sel) {
@@ -7880,12 +7958,16 @@ async function loadOrderCustomers() {
 
 // ===== 3. 采购管理 =====
 var purchaseData = [];
+var currentProcurementEntity = '';
 async function loadPurchaseData() {
-  var res = await apiCall('GET', '/procurement/requests');
+  var url = '/procurement/requests';
+  if (currentProcurementEntity) url += '?entity_id=' + currentProcurementEntity;
+  var res = await apiCall('GET', url);
   if (res && res.success && res.data) {
-    var statusLabels = { 'pending': '待审批', 'pending_ops': '待运营总监审批', 'pending_tech': '待技术总监审批', 'pending_gm': '待总经理审批', 'quoted': '已询价', 'approved': '已审批', 'completed': '已完成', 'rejected': '已驳回' };
+    var statusLabels = { 'pending': '待审批', 'pending_ops': '待运营总监审批', 'pending_factory': '待厂长审批', 'pending_tech': '待技术总监审批', 'pending_gm': '待总经理审批', 'quoted': '已询价', 'approved': '已审批', 'completed': '已完成', 'rejected': '已驳回' };
+    var entityLabels = { 'JTF': '🏢 JOYFULL', 'PFB': '🏭 PABRIK', 'SZJ': '🔗 SZ JOYFULL' };
     purchaseData = res.data.map(function(p) {
-      return { rawId: p.id, id: p.request_no || ('PR-' + p.id), type: p.type || 'formal', category: p.category || '', applicant: p.requester_name || '', date: (p.created_at || '').slice(0,10), status: statusLabels[p.status] || p.status || '待审批', statusKey: p.status || 'pending_ops' };
+      return { rawId: p.id, id: p.request_no || ('PR-' + p.id), type: p.type || 'formal', category: p.category || '', applicant: p.requester_name || p.creator_name || '', date: (p.created_at || '').slice(0,10), status: statusLabels[p.status] || p.status || '待审批', statusKey: p.status || 'pending_ops', entityName: entityLabels[p.entity_code] || p.entity_name || '-', entityCode: p.entity_code || '', entityId: p.entity_id || '' };
     });
   }
 }
@@ -7913,6 +7995,7 @@ function renderPurchaseTable() {
     tr.className = 'hover:bg-gray-50';
     if (p.rawId) tr.setAttribute('data-dbid', p.rawId);
     tr.innerHTML = '<td class="px-5 py-3.5 text-sm font-mono text-brand-600">' + p.id + '</td>' +
+      '<td class="px-5 py-3.5 text-sm text-gray-700">' + p.entityName + '</td>' +
       '<td class="px-5 py-3.5"><span class="text-xs ' + (p.type === 'pre' ? 'text-amber-600 bg-amber-50' : 'text-green-600 bg-green-50') + ' px-2 py-0.5 rounded">' + (typeLabels[p.type] || p.type) + '</span></td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + p.category + '</td>' +
       '<td class="px-5 py-3.5 text-sm text-gray-700">' + p.applicant + '</td>' +
@@ -7925,6 +8008,13 @@ function renderPurchaseTable() {
   if (pag) pag.textContent = '\u663e\u793a ' + filtered.length + ' \u6761\u91c7\u8d2d\u7533\u8bf7\uff0c\u5171 ' + purchaseData.length + ' \u6761';
 }
 function filterPurchases() { renderPurchaseTable(); }
+function filterProcurementByEntity(btn) {
+  var tabs = document.querySelectorAll('#procurement-entity-tabs .entity-tab');
+  tabs.forEach(function(t) { t.className = 'px-4 py-1.5 text-sm rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 entity-tab'; });
+  btn.className = 'px-4 py-1.5 text-sm rounded-full bg-brand-600 text-white font-medium entity-tab active';
+  currentProcurementEntity = btn.getAttribute('data-entity') || '';
+  loadPurchaseData().then(function(){ renderPurchaseTable(); });
+}
 
 // ===== 4. 仓储管理 =====
 var warehouseInboundData = [];
@@ -8122,13 +8212,14 @@ function renderMaterialRequestTable() {
 
 // ===== 7. 财务管理 =====
 var paymentData = [];
+var outgoingPaymentData = [];
 var invoiceData = [];
 var voucherData = [];
 async function loadFinanceData() {
   var resPay = await apiCall('GET', '/finance/payments');
   if (resPay && resPay.success && resPay.data) {
     paymentData = resPay.data.map(function(p) {
-      return { rawId: p.id, id: p.payment_no || ('PAY-' + p.id), order: p.order_no || '', customer: p.customer_name || '', receivable: 'IDR ' + (p.receivable_amount || 0).toLocaleString(), received: 'IDR ' + (p.received_amount || 0).toLocaleString(), method: p.payment_method || '转账', date: (p.payment_date || p.created_at || '').slice(0,10), status: p.status === 'confirmed' ? '已到账' : (p.status || '待确认'), dataStatus: p.status || 'completed' };
+      return { rawId: p.id, id: p.payment_no || ('PAY-' + p.id), order: p.order_no || '', customer: p.customer_name || '', receivable: 'IDR ' + (p.receivable_amount || 0).toLocaleString(), received: 'IDR ' + (p.received_amount || 0).toLocaleString(), method: p.payment_method || '转账', date: (p.payment_date || p.created_at || '').slice(0,10), status: p.status === 'confirmed' ? '已到账' : (p.status || '待确认'), entityName: p.entity_name || '', entityCode: p.entity_code || '', dataStatus: p.status || 'completed' };
     });
   }
   if (paymentData.length === 0) {
@@ -8143,6 +8234,25 @@ async function loadFinanceData() {
   // Invoice and voucher data - keep HTML fallback
   invoiceData = [];
   voucherData = [];
+  // Load outgoing payments
+  var resOutPay = await apiCall('GET', '/finance/outgoing-payments');
+  if (resOutPay && resOutPay.success && resOutPay.data) {
+    outgoingPaymentData = resOutPay.data.map(function(p) {
+      return { rawId: p.id, id: p.payment_no || ('OP-' + p.id), procurement: p.request_no || '', supplier: p.supplier_name || '', amount: 'IDR ' + (p.amount || 0).toLocaleString(), method: p.payment_method || '转账', date: (p.payment_date || p.created_at || '').slice(0,10), entityName: p.entity_name || '', status: '已付款', dataStatus: 'completed' };
+    });
+  }
+  // Load invoices
+  var resInv = await apiCall('GET', '/finance/invoices');
+  if (resInv && resInv.success && resInv.data) {
+    invoiceData = resInv.data.map(function(inv) {
+      return { rawId: inv.id, id: inv.invoice_no || ('INV-' + inv.id), order: inv.order_no || '', customer: inv.customer_name || '', amount: 'IDR ' + (inv.amount || 0).toLocaleString(), date: (inv.invoice_date || inv.created_at || '').slice(0,10), entityName: inv.entity_name || '', invoiceType: inv.invoice_number || '-', status: inv.invoice_number ? '已开票' : '待开票', dataStatus: 'completed' };
+    });
+  }
+  // Load entities for filter
+  var resEnt = await apiCall('GET', '/entities');
+  if (resEnt && resEnt.success && resEnt.data) {
+    window._entitiesCache = resEnt.data;
+  }
 }
 async function savePaymentData() { /* persisted via API */ }
 async function saveInvoiceData() { /* persisted via API */ }
@@ -8151,13 +8261,19 @@ function renderPaymentTable() {
   var tbody = document.querySelector('#page-finance-payment tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  paymentData.forEach(function(p, idx) {
+  var filter = (document.getElementById('entityFilterPayment') || {}).value || 'all';
+  var list = paymentData;
+  if (filter !== 'all') {
+    list = list.filter(function(p) { return String(p.entityCode) === filter; });
+  }
+  list.forEach(function(p, idx) {
     var statusClass = p.status.indexOf('已到账') > -1 ? 'badge-green' : 'badge-orange';
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-status', p.dataStatus || 'completed');
     if (p.rawId) tr.setAttribute('data-dbid', p.rawId);
     tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + p.id + '</td>' +
+      '<td class="px-5 py-3 text-sm">' + (p.entityName || '-') + '</td>' +
       '<td class="px-5 py-3 text-sm text-gray-500">' + p.order + '</td>' +
       '<td class="px-5 py-3 text-sm">' + p.customer + '</td>' +
       '<td class="px-5 py-3 text-sm">' + p.receivable + '</td>' +
@@ -8169,22 +8285,55 @@ function renderPaymentTable() {
     tbody.appendChild(tr);
   });
 }
+function renderPaymentOutTable() {
+  var tbody = document.querySelector('#page-finance-payment-out tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  var filter = (document.getElementById('entityFilterPaymentOut') || {}).value || 'all';
+  var list = outgoingPaymentData;
+  if (filter !== 'all') {
+    list = list.filter(function(p) { return String(p.entityCode) === filter; });
+  }
+  list.forEach(function(p, idx) {
+    var tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-50';
+    tr.setAttribute('data-dbid', p.rawId || '');
+    tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + p.id + '</td>' +
+      '<td class="px-5 py-3 text-sm">' + (p.entityName || '-') + '</td>' +
+      '<td class="px-5 py-3 text-sm">' + p.procurement + '</td>' +
+      '<td class="px-5 py-3 text-sm">' + p.supplier + '</td>' +
+      '<td class="px-5 py-3 text-sm font-medium text-gray-800">' + p.amount + '</td>' +
+      '<td class="px-5 py-3 text-sm text-gray-500">' + p.method + '</td>' +
+      '<td class="px-5 py-3 text-sm text-gray-500">' + p.date + '</td>' +
+      '<td class="px-5 py-3"><span class="badge badge-green">' + p.status + '</span></td>' +
+      '<td class="px-5 py-3 text-sm"><button class="text-brand-600 hover:text-brand-800" onclick="viewPaymentOut(\'' + p.rawId + '\')">查看<br><span class="text-[11px] text-gray-400">Lihat</span></button></td>';
+    tbody.appendChild(tr);
+  });
+}
+function filterPaymentsByEntity() { renderPaymentTable(); }
+function filterPaymentOutByEntity() { renderPaymentOutTable(); }
+function filterInvoicesByEntity() { renderInvoiceTable(); }
 function renderInvoiceTable() {
   var tbody = document.querySelector('#page-finance-invoice tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  invoiceData.forEach(function(inv, idx) {
-    var statusClass = inv.status.indexOf('已开票') > -1 ? 'badge-green' : 'badge-orange';
+  var filter = (document.getElementById('entityFilterInvoice') || {}).value || 'all';
+  var list = invoiceData;
+  if (filter !== 'all') {
+    list = list.filter(function(inv) { return String(inv.entityCode) === filter; });
+  }
+  list.forEach(function(inv, idx) {
+    var statusClass = (inv.status || '').indexOf('已开票') > -1 ? 'badge-green' : 'badge-orange';
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
     tr.setAttribute('data-status', inv.dataStatus || 'issued');
     tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-brand-600">' + inv.id + '</td>' +
+      '<td class="px-5 py-3 text-sm">' + (inv.entityName || '-') + '</td>' +
       '<td class="px-5 py-3 text-sm text-gray-500">' + inv.order + '</td>' +
       '<td class="px-5 py-3 text-sm">' + inv.customer + '</td>' +
       '<td class="px-5 py-3 text-sm font-semibold">' + inv.amount + '</td>' +
       '<td class="px-5 py-3 text-sm text-gray-500">' + inv.date + '</td>' +
-      '<td class="px-5 py-3"><span class="badge ' + (inv.type.indexOf('增值税') > -1 ? 'badge-purple' : 'badge-blue') + '">' + inv.type + '</span></td>' +
-      '<td class="px-5 py-3"><span class="badge ' + statusClass + '">' + inv.status + '</span></td>' +
+      '<td class="px-5 py-3"><span class="badge ' + statusClass + '">' + (inv.status || '-') + '</span></td>' +
       '<td class="px-5 py-3 text-sm"><button class="text-brand-600 hover:text-brand-800">下载 <span class="text-xs opacity-80">/ Unduh</span></button></td>';
     tbody.appendChild(tr);
   });

@@ -26,6 +26,7 @@ const inquiryRoutes = require('./routes/inquiries');
 const dealerRoutes = require('./routes/dealers');
 const aftersalesRoutes = require('./routes/aftersales');
 const adminRoutes = require('./routes/admin');
+const entityRoutes = require('./routes/entities');
 
 const app = express();
 // 固定监听 3000，与 Railway Public Domain 绑定的目标端口保持一致（process.env.PORT 为随机值会导致 502）
@@ -65,6 +66,7 @@ app.use('/api/inquiries', inquiryRoutes(db));
 app.use('/api/dealers', dealerRoutes(db));
 app.use('/api/aftersales', aftersalesRoutes(db));
 app.use('/api/admin', adminRoutes(db));
+app.use('/api/entities', entityRoutes(db));
 
 // Health check
 app.get('/api/health', (req, res) => {
