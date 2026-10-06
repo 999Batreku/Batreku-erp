@@ -840,14 +840,15 @@ tailwind.config = {
     _currentApprovalModule = mod;
     var tabs = document.querySelectorAll('#approval-module-tabs button');
     tabs.forEach(function(btn){ btn.className = 'px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200'; });
-    var idx = {'customer':0,'inquiry':1,'shipping':2,'dealer':3,'aftersales':4};
+    var idx = {'customer':0,'inquiry':1,'shipping':2,'dealer':3,'aftersales':4,'outbound':5};
     if (tabs[idx[mod]]) tabs[idx[mod]].className = 'px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white';
     var containers = {
       'customer': 'approval-list-wrap',
       'inquiry': 'approval-inquiry-list',
       'shipping': 'approval-shipping-list',
       'dealer': 'approval-dealer-list',
-      'aftersales': 'approval-aftersales-list'
+      'aftersales': 'approval-aftersales-list',
+      'outbound': 'approval-outbound-list'
     };
     Object.keys(containers).forEach(function(k){
       var el = document.getElementById(containers[k]);
@@ -855,21 +856,26 @@ tailwind.config = {
         if (k === mod) { el.classList.remove('hidden'); } else { el.classList.add('hidden'); }
       }
     });
+    // Show/hide notice
+    var noticeEl = document.getElementById('approval-outbound-notice');
+    if (noticeEl) { if (mod === 'outbound') { noticeEl.classList.remove('hidden'); } else { noticeEl.classList.add('hidden'); } }
     var descMap = {
       'customer': '业务员录入的新客户默认为「待审批」。审批通过后系统发放正式客户编码（CUS-xxx），客户状态转为「已审批」方可正常开展业务；驳回需填写原因，业务员可修改后重新提交。',
       'inquiry': '业务员提交询盘后先到运营总监审核，2小时内未审批则系统自动升级至技术总监进行方案指导。技术总监给出指导意见后，业务员方可创建初步报价。',
       'shipping': '发货申请提交后进入三级审批流程，审批通过后方可安排发货。',
       'dealer': '经销商准入申请提交后进入三级审批，审批通过后方可正式合作。',
-      'aftersales': '工单创建后进入三级审批，审批通过后方可安排处理。'
+      'aftersales': '工单创建后进入三级审批，审批通过后方可安排处理。',
+      'outbound': '仓储人员提交出库申请 → 部门主管审批 → 运营总监审批 → 技术总监(Alex)审批 → 总经理(Santsang)终审。审批通过后自动记录出库并更新库存。'
     };
-    var labelMap = {'customer':'客户','inquiry':'询盘','shipping':'发货','dealer':'经销商','aftersales':'工单'};
+    var labelMap = {'customer':'客户','inquiry':'询盘','shipping':'发货','dealer':'经销商','aftersales':'工单','outbound':'出库申请'};
     var descEl = document.querySelector('#approval-list-wrap .bg-blue-50\\/60 p');
-    if (descEl) descEl.innerHTML = '<strong>📌 ' + (labelMap[mod] || '') + '审批规则：</strong>' + descMap[mod];
+    if (descEl && mod === 'customer') descEl.innerHTML = '<strong> ' + (labelMap[mod] || '') + '审批规则：</strong>' + descMap[mod];
     if (mod === 'customer') loadCustomerApprovals();
     else if (mod === 'inquiry') loadInquiryApprovals();
     else if (mod === 'shipping') loadShippingApprovals();
     else if (mod === 'dealer') loadDealerApprovals();
     else if (mod === 'aftersales') loadAftersalesApprovals();
+    else if (mod === 'outbound') loadOutboundApprovals();
   }
 
   // ========== 通用审批状态徽章 ==========
@@ -942,6 +948,83 @@ tailwind.config = {
     renderGenericApprovals(data, listEl, 'aftersales', {
       titleField: 'ticket_no', subtitleField: 'issue_type', extraFields: ['priority','description','assigned_to']
     });
+  }
+
+  // ========== 出库申请审批 ==========
+  async function loadOutboundApprovals() {
+    var listEl = document.getElementById('approval-outbound-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
+    var res = await apiCall('GET', '/warehouse/outbound-approvals');
+    if (!res || !res.success) { listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>'; return; }
+    var data = res.data || [];
+    var myRole = currentUser ? currentUser.role : '';
+    // Filter by role: dept_manager sees pending_ops, ops_director sees pending_dept, tech_director sees pending_tech, gm sees pending_gm
+    var statusMap = { 'dept_manager':'pending_ops', 'operations_director':'pending_dept', 'tech_director':'pending_tech', 'general_manager':'pending_gm' };
+    var targetStatus = statusMap[myRole];
+    if (targetStatus) {
+      data = data.filter(function(item){ return item.approval_status === targetStatus; });
+    }
+    if (data.length === 0) { listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批出库申请 / Tidak ada permohonan keluar yang menunggu persetujuan</div>'; return; }
+    renderOutboundApprovals(data, listEl);
+  }
+
+  function renderOutboundApprovals(data, listEl) {
+    var role = currentUser ? currentUser.role : '';
+    var statusMap = { 'pending_ops':'dept_manager', 'pending_dept':'operations_director', 'pending_tech':'tech_director', 'pending_gm':'general_manager' };
+    var myApprovalRole = statusMap[data[0] ? data[0].approval_status : ''];
+    var canApprove = myApprovalRole && role === myApprovalRole;
+    var html = '';
+    data.forEach(function(item){
+      var statusText = {'pending_ops':'待部门主管审批 / Menunggu Kepala Divisi','pending_dept':'待运营总监审批 / Menunggu Direktur Operasi','pending_tech':'待技术总监审批 / Menunggu Direktur Teknik','pending_gm':'待总经理审批 / Menunggu Direktur Utama','approved':'已批准 / Disetujui','rejected':'已拒绝 / Ditolak'};
+      var statusClass = {'pending_ops':'badge-yellow','pending_dept':'badge-yellow','pending_tech':'badge-blue','pending_gm':'badge-green','approved':'badge-green','rejected':'badge-red'};
+      var entityName = item.entity_name || (item.entity_code === 'JOYFULL' ? 'PT JOYFULL' : 'PT PABRIK');
+      html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">';
+      html += '<div class="flex items-center justify-between mb-3"><div><span class="text-sm font-medium text-gray-700">' + (item.outbound_no || '') + '</span> <span class="text-xs text-gray-400 ml-2">' + entityName + '</span></div><span class="' + (statusClass[item.approval_status] || 'badge-gray') + '">' + (statusText[item.approval_status] || item.approval_status) + '</span></div>';
+      html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-500 mb-3">';
+      html += '<div><span class="text-gray-400">申请人</span><br><span class="text-gray-700">' + (item.creator_name || '-') + '</span></div>';
+      html += '<div><span class="text-gray-400">出库仓库</span><br><span class="text-gray-700">' + (item.warehouse_name || '-') + '</span></div>';
+      html += '<div><span class="text-gray-400">类型</span><br><span class="text-gray-700">' + (item.type || '-') + '</span></div>';
+      html += '<div><span class="text-gray-400">日期</span><br><span class="text-gray-700">' + ((item.created_at || '').slice(0,10)) + '</span></div>';
+      html += '</div>';
+      if (item.notes) html += '<div class="text-xs text-gray-500 mb-3"><span class="text-gray-400">备注：</span>' + item.notes + '</div>';
+      // Show approval chain
+      html += '<div class="flex gap-2 text-xs text-gray-400 mb-3 flex-wrap">';
+      if (item.approval_dept_manager) html += '<span>部门主管: ' + item.approval_dept_manager + ' ✓</span>';
+      if (item.approval_ops_director) html += '<span>运营总监: ' + item.approval_ops_director + ' ✓</span>';
+      if (item.approval_tech_director) html += '<span>技术总监: ' + item.approval_tech_director + ' ✓</span>';
+      if (item.approval_gm) html += '<span>总经理: ' + item.approval_gm + ' ✓</span>';
+      html += '</div>';
+      if (item.rejection_reason) html += '<div class="text-xs text-red-500 mb-3">驳回原因：' + item.rejection_reason + ' (by ' + item.rejected_by + ')</div>';
+      // Action buttons
+      if (canApprove && item.approval_status !== 'approved' && item.approval_status !== 'rejected') {
+        html += '<div class="flex gap-2 pt-2 border-t border-gray-100">';
+        html += '<button class="px-3 py-1.5 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600" onclick="approveOutbound(' + item.id + ')">批准 / Setujui</button>';
+        html += '<button class="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600" onclick="rejectOutbound(' + item.id + ')">拒绝 / Tolak</button>';
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+    listEl.innerHTML = html;
+  }
+
+  async function approveOutbound(id) {
+    var roleMap = {'dept_manager':'dept_manager','operations_director':'ops_director','tech_director':'tech_director','general_manager':'gm'};
+    var myRole = currentUser ? currentUser.role : '';
+    var apiRole = roleMap[myRole];
+    if (!apiRole) { alert('当前角色无权审批此出库申请'); return; }
+    if (!confirm('确认批准此出库申请？')) return;
+    var res = await apiCall('PUT', '/warehouse/outbound/' + id + '/approve', { role: apiRole });
+    if (res && res.success) { alert('审批通过'); loadOutboundApprovals(); }
+    else { alert('审批失败：' + (res ? res.error : '网络错误')); }
+  }
+
+  async function rejectOutbound(id) {
+    var reason = prompt('请输入拒绝原因 / Alasan penolakan:');
+    if (!reason) return;
+    var res = await apiCall('PUT', '/warehouse/outbound/' + id + '/reject', { reason: reason });
+    if (res && res.success) { alert('已拒绝'); loadOutboundApprovals(); }
+    else { alert('操作失败：' + (res ? res.error : '网络错误')); }
   }
 
   // ========== 通用审批渲染 ==========
@@ -2416,9 +2499,9 @@ function filterOutboundList() {
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
       <div><label class="block text-sm font-medium text-gray-700 mb-1">选择客户 * <span class="text-xs text-gray-400">/ Pilih Pelanggan</span></label><select class="w-full px-4 py-2 border border-gray-300 rounded-lg"><option value="">请选择客户 / Pilih pelanggan</option><option>PT Surya Energi</option><option>CV Nusantara Power</option><option>PT Mega Solar Indonesia</option><option>PT Indo Battery Solution</option><option>PT PLN Nusantara</option><option>CV Baterai Mandiri</option></select></div>
-      <div><label class="block text-sm font-medium text-gray-700 mb-1">订单类型 * <span class="text-xs text-gray-400">/ Jenis Pesanan</span></label><select class="w-full px-4 py-2 border border-gray-300 rounded-lg"><option>储能系统销售 / Penjualan ESS</option><option>电池组件销售 / Penjualan Komponen Baterai</option><option>EPC工程 / Proyek EPC</option><option>售后服务 / Layanan Purna Jual</option><option>经销商批量采购 / Pembelian Massal Distributor</option><option>框架协议补货 / Pengadaan Kerangka Perjanjian</option></select></div>
+      <div><label class="block text-sm font-medium text-gray-700 mb-1">订单类型 * <span class="text-xs text-gray-400">/ Jenis Pesanan</span></label><input list="order-type-list" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="选择或输入订单类型"><datalist id="order-type-list"><option>储能系统销售 / Penjualan ESS</option><option>电池组件销售 / Penjualan Komponen Baterai</option><option>EPC工程 / Proyek EPC</option><option>售后服务 / Layanan Purna Jual</option><option>经销商批量采购 / Pembelian Massal Distributor</option><option>框架协议补货 / Pengadaan Kerangka Perjanjian</option></datalist></div>
       <div><label class="block text-sm font-medium text-gray-700 mb-1">订单金额 (IDR) * <span class="text-xs text-gray-400">/ Jumlah Pesanan</span></label><input type="text" placeholder="如：850,000,000 / Mis: 850.000.000" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
-      <div><label class="block text-sm font-medium text-gray-700 mb-1">付款方式 <span class="text-xs text-gray-400">/ Metode Pembayaran</span></label><select class="w-full px-4 py-2 border border-gray-300 rounded-lg"><option>30%首付+70%发货前付清 / DP 30% + 70% sebelum pengiriman</option><option>50%首付+50%验收后付清 / DP 50% + 50% setelah penerimaan</option><option>一次性全额付款 / Pembayaran penuh sekali saja</option><option>月结30天 / Tempo 30 hari</option><option>其他（备注说明） / Lainnya (catatan)</option></select></div>
+      <div><label class="block text-sm font-medium text-gray-700 mb-1">付款方式 <span class="text-xs text-gray-400">/ Metode Pembayaran</span></label><input list="payment-method-list" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="选择或输入付款方式"><datalist id="payment-method-list"><option>30%首付+70%发货前付清 / DP 30% + 70% sebelum pengiriman</option><option>50%首付+50%验收后付清 / DP 50% + 50% setelah penerimaan</option><option>一次性全额付款 / Pembayaran penuh sekali saja</option><option>月结30天 / Tempo 30 hari</option><option>其他（备注说明） / Lainnya (catatan)</option></datalist></div>
       <div><label class="block text-sm font-medium text-gray-700 mb-1">预计交货日期 <span class="text-xs text-gray-400">/ Estimasi Tanggal Pengiriman</span></label><input type="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></div>
       <div><label class="block text-sm font-medium text-gray-700 mb-1">出库仓库 <span class="text-xs text-gray-400">/ Gudang Pengeluaran</span></label><select class="w-full px-4 py-2 border border-gray-300 rounded-lg"><option>BATREKU 雅加达仓 / Gudang Jakarta</option><option>BATREKU 泗水仓 / Gudang Surabaya</option><option>BATREKU 棉兰仓 / Gudang Medan</option><option>中国东莞工厂直发 / Kirim Langsung Pabrik Dongguan</option></select></div>
     </div>
@@ -2592,6 +2675,7 @@ function filterOutboundList() {
     <button class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200" onclick="switchApprovalModule('shipping')">发货 / Pengiriman</button>
     <button class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200" onclick="switchApprovalModule('dealer')">经销商 / Dealer</button>
     <button class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200" onclick="switchApprovalModule('aftersales')">工单 / Tiket</button>
+    <button class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200" onclick="switchApprovalModule('outbound')">出库申请 / Permohonan Keluar</button>
   </div>
 
   <!-- 客户审批列表容器 -->
@@ -2602,6 +2686,11 @@ function filterOutboundList() {
     <div id="approval-customer-list" class="space-y-4"></div>
   </div>
 
+  <!-- 出库审批说明 -->
+  <div id="approval-outbound-notice" class="hidden bg-blue-50/60 rounded-lg p-3 border border-blue-100 mb-5">
+    <p class="text-xs text-blue-700"><strong>📌 出库审批流程：</strong>仓储人员提交出库申请 → 部门主管审批 → 运营总监审批 → 技术总监(Alex)审批 → 总经理(Santsang)终审。审批通过后自动记录出库并更新库存。</p>
+  </div>
+
   <!-- 询盘审批列表容器 -->
   <div id="approval-inquiry-list" class="space-y-4 hidden"></div>
   <!-- 发货审批列表容器 -->
@@ -2610,6 +2699,8 @@ function filterOutboundList() {
   <div id="approval-dealer-list" class="space-y-4 hidden"></div>
   <!-- 工单审批列表容器 -->
   <div id="approval-aftersales-list" class="space-y-4 hidden"></div>
+  <!-- 出库审批列表容器 -->
+  <div id="approval-outbound-list" class="space-y-4 hidden"></div>
 
 </div>
 
