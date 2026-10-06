@@ -2842,11 +2842,11 @@ function filterOutboundList() {
     <p class="text-xs text-blue-700"><strong>📌 出库流程说明：</strong>仓储人员提交「出库申请单」→ 逐级审批（部门主管→运营总监→技术总监→总经理）→ 审批通过后自动记录出库并更新库存。当前页面展示已审批通过的出库记录。</p>
   </div>
   <div class="p-4 border-b border-gray-100 flex flex-wrap gap-3 bg-white rounded-t-xl"><input type="text" id="outbound-filter-search" placeholder="搜索出库单号/项目/物料... / Cari no. pengeluaran/proyek/material..." class="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg text-sm" oninput="filterOutboundList()"><select id="outbound-filter-type" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterOutboundList()"><option value="">全部类型 / Semua Jenis</option><option value="项目领料">项目领料 / Pengambilan Material Proyek</option><option value="调拨出库">调拨出库 / Transfer Keluar</option><option value="样品出库">样品出库 / Pengeluaran Sampel</option></select><select id="outbound-filter-status" class="px-4 py-2 border border-gray-300 rounded-lg text-sm" onchange="filterOutboundList()"><option value="">全部状态 / Semua Status</option><option value="待审批">待审批 / Menunggu Persetujuan</option><option value="已批准">已批准 / Sudah Disetujui</option><option value="已完成">已完成 / Selesai</option></select></div>
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">出库单号<br><span class="text-[12px] text-gray-400">No. Pengeluaran</span></th><th class="px-5 py-3"物料名称 / Nama Material</th><th class="px-5 py-3">数量<br><span class="text-[12px] text-gray-400">Jumlah</span></th><th class="px-5 py-3">去向<br><span class="text-[12px] text-gray-400">Tujuan</span></th><th class="px-5 py-3">关联项目/订单<br><span class="text-[12px] text-gray-400">Proyek/Pesanan Terkait</span></th><th class="px-5 py-3">出库日期<br><span class="text-[12px] text-gray-400">Tanggal</span></th><th class="px-5 py-3">操作人<br><span class="text-[12px] text-gray-400">Operator</span></th></tr></thead><tbody class="divide-y divide-gray-50">
-    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-J015</td><td class="px-5 py-3.5 text-sm text-gray-700">镀锌钢支架</td><td class="px-5 py-3.5 text-sm font-medium">50 套</td><td class="px-5 py-3.5"><span class="badge badge-blue">项目领料</span></td><td class="px-5 py-3.5 text-sm text-gray-500">Nampang项目</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15</td><td class="px-5 py-3.5 text-sm text-gray-700">Bambang</td></tr>
-    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-J014</td><td class="px-5 py-3.5 text-sm text-gray-700">550W 太阳能组件</td><td class="px-5 py-3.5 text-sm font-medium">100 块</td><td class="px-5 py-3.5"><span class="badge badge-blue">项目领料</span></td><td class="px-5 py-3.5 text-sm text-gray-500">Bogor养鸡场项目</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-13</td><td class="px-5 py-3.5 text-sm text-gray-700">Joko</td></tr>
-    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-J013</td><td class="px-5 py-3.5 text-sm text-gray-700">逆变器 50kW</td><td class="px-5 py-3.5 text-sm font-medium">2 台</td><td class="px-5 py-3.5"><span class="badge badge-green">调拨出库</span></td><td class="px-5 py-3.5 text-sm text-gray-500">Kendal工厂项目</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-11</td><td class="px-5 py-3.5 text-sm text-gray-700">Bambang</td></tr>
-    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-J012</td><td class="px-5 py-3.5 text-sm text-gray-700">配电箱 400V</td><td class="px-5 py-3.5 text-sm font-medium">3 套</td><td class="px-5 py-3.5"><span class="badge badge-blue">项目领料</span></td><td class="px-5 py-3.5 text-sm text-gray-500">Nampang项目</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-10</td><td class="px-5 py-3.5 text-sm text-gray-700">Joko</td></tr>
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">出库单号<br><span class="text-[12px] text-gray-400">No. Pengeluaran</span></th><th class="px-5 py-3">物料名称<br><span class="text-[12px] text-gray-400">Nama Material</span></th><th class="px-5 py-3">数量<br><span class="text-[12px] text-gray-400">Jumlah</span></th><th class="px-5 py-3">去向<br><span class="text-[12px] text-gray-400">Tujuan</span></th><th class="px-5 py-3">关联项目/订单<br><span class="text-[12px] text-gray-400">Proyek/Pesanan Terkait</span></th><th class="px-5 py-3">出库日期<br><span class="text-[12px] text-gray-400">Tanggal</span></th><th class="px-5 py-3">操作人<br><span class="text-[12px] text-gray-400">Operator</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th></tr></thead><tbody class="divide-y divide-gray-50">
+    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-J015</td><td class="px-5 py-3.5 text-sm text-gray-700">镀锌钢支架</td><td class="px-5 py-3.5 text-sm font-medium">50 套</td><td class="px-5 py-3.5"><span class="badge badge-blue">项目领料</span></td><td class="px-5 py-3.5 text-sm text-gray-500">Nampang项目</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15</td><td class="px-5 py-3.5 text-sm text-gray-700">Bambang</td><td class="px-5 py-3.5"><span class="badge badge-green">已批准<br><span class="text-[11px]">Disetujui</span></span></td></tr>
+    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-J014</td><td class="px-5 py-3.5 text-sm text-gray-700">550W 太阳能组件</td><td class="px-5 py-3.5 text-sm font-medium">100 块</td><td class="px-5 py-3.5"><span class="badge badge-blue">项目领料</span></td><td class="px-5 py-3.5 text-sm text-gray-500">Bogor养鸡场项目</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-13</td><td class="px-5 py-3.5 text-sm text-gray-700">Joko</td><td class="px-5 py-3.5"><span class="badge badge-green">已批准<br><span class="text-[11px]">Disetujui</span></span></td></tr>
+    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-J013</td><td class="px-5 py-3.5 text-sm text-gray-700">逆变器 50kW</td><td class="px-5 py-3.5 text-sm font-medium">2 台</td><td class="px-5 py-3.5"><span class="badge badge-green">调拨出库</span></td><td class="px-5 py-3.5 text-sm text-gray-500">Kendal工厂项目</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-11</td><td class="px-5 py-3.5 text-sm text-gray-700">Bambang</td><td class="px-5 py-3.5"><span class="badge badge-green">已批准<br><span class="text-[11px]">Disetujui</span></span></td></tr>
+    <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-J012</td><td class="px-5 py-3.5 text-sm text-gray-700">配电箱 400V</td><td class="px-5 py-3.5 text-sm font-medium">3 套</td><td class="px-5 py-3.5"><span class="badge badge-blue">项目领料</span></td><td class="px-5 py-3.5 text-sm text-gray-500">Nampang项目</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-10</td><td class="px-5 py-3.5 text-sm text-gray-700">Joko</td><td class="px-5 py-3.5"><span class="badge badge-green">已批准<br><span class="text-[11px]">Disetujui</span></span></td></tr>
   </tbody></table></div></div>
 </div>
 
@@ -3003,7 +3003,7 @@ function filterOutboundList() {
   <div class="bg-blue-50/60 rounded-lg p-3 border border-blue-100 mb-5">
     <p class="text-xs text-blue-700"><strong>📌 出库流程说明：</strong>仓储人员提交「出库申请单」→ 逐级审批（部门主管→运营总监→技术总监→总经理）→ 审批通过后自动记录出库并更新库存。当前页面展示已审批通过的出库记录。</p>
   </div>
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">出库单号<br><span class="text-[12px] text-gray-400">No. Pengeluaran</span></th><th class="px-5 py-3"物料名称 / Nama Material</th><th class="px-5 py-3">数量<br><span class="text-[12px] text-gray-400">Jumlah</span></th><th class="px-5 py-3">去向<br><span class="text-[12px] text-gray-400">Tujuan</span></th><th class="px-5 py-3">关联生产计划/订单<br><span class="text-[12px] text-gray-400">Rencana/Pesanan Terkait</span></th><th class="px-5 py-3">出库日期<br><span class="text-[12px] text-gray-400">Tanggal</span></th><th class="px-5 py-3">操作人<br><span class="text-[12px] text-gray-400">Operator</span></th></tr></thead><tbody class="divide-y divide-gray-50">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100"><th class="px-5 py-3">出库单号<br><span class="text-[12px] text-gray-400">No. Pengeluaran</span></th><th class="px-5 py-3"物料名称 / Nama Material</th><th class="px-5 py-3">数量<br><span class="text-[12px] text-gray-400">Jumlah</span></th><th class="px-5 py-3">去向<br><span class="text-[12px] text-gray-400">Tujuan</span></th><th class="px-5 py-3">关联生产计划/订单<br><span class="text-[12px] text-gray-400">Rencana/Pesanan Terkait</span></th><th class="px-5 py-3">出库日期<br><span class="text-[12px] text-gray-400">Tanggal</span></th><th class="px-5 py-3">操作人<br><span class="text-[12px] text-gray-400">Operator</span></th><th class="px-5 py-3">状态<br><span class="text-[12px] text-gray-400">Status</span></th></tr></thead><tbody class="divide-y divide-gray-50">
     <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-P020</td><td class="px-5 py-3.5 text-sm text-gray-700">LiFePO4 正极材料</td><td class="px-5 py-3.5 text-sm font-medium">200 kg</td><td class="px-5 py-3.5"><span class="badge badge-blue">生产领料</span></td><td class="px-5 py-3.5 text-sm text-gray-500">生产线A</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-15</td><td class="px-5 py-3.5 text-sm text-gray-700">Bambang</td></tr>
     <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-P021</td><td class="px-5 py-3.5 text-sm text-gray-700">48V 100Ah 电池组</td><td class="px-5 py-3.5 text-sm font-medium">30 组</td><td class="px-5 py-3.5"><span class="badge badge-green">成品发货</span></td><td class="px-5 py-3.5 text-sm text-gray-500">PT Surya Energi</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-14</td><td class="px-5 py-3.5 text-sm text-gray-700">Joko</td></tr>
     <tr class="hover:bg-gray-50"><td class="px-5 py-3.5 text-sm font-mono text-brand-600">OUT-P019</td><td class="px-5 py-3.5 text-sm text-gray-700">石墨负极材料</td><td class="px-5 py-3.5 text-sm font-medium">100 kg</td><td class="px-5 py-3.5"><span class="badge badge-blue">生产领料</span></td><td class="px-5 py-3.5 text-sm text-gray-500">生产线B</td><td class="px-5 py-3.5 text-sm text-gray-500">2025-06-13</td><td class="px-5 py-3.5 text-sm text-gray-700">Bambang</td></tr>
@@ -8053,7 +8053,10 @@ async function loadWarehouseData() {
   var resOut = await apiCall('GET', '/warehouse/outbound');
   if (resOut && resOut.success && resOut.data) {
     warehouseOutboundData = resOut.data.map(function(item) {
-      return { rawId: item.id, id: item.outbound_no || ('OUT-' + item.id), material: item.material_name || '综合物料', qty: item.quantity || '若干', destination: item.type || '项目领用', relatedOrder: item.order_no || '-', date: (item.created_at || '').slice(0,10), operator: item.creator_name || '', warehouse: item.warehouse_name || 'JOYFULL' };
+      var warehouse = item.warehouse_name || 'JOYFULL';
+      if (item.entity_code === 'JTF') warehouse = 'JOYFULL';
+      else if (item.entity_code === 'BPE' || item.entity_code === 'PABRIK') warehouse = 'PABRIK';
+      return { rawId: item.id, id: item.outbound_no || ('OUT-' + item.id), material: item.material_name || '综合物料', qty: item.quantity || '若干', destination: item.type || '项目领用', relatedOrder: item.order_no || '-', date: (item.created_at || '').slice(0,10), operator: item.creator_name || '', warehouse: warehouse, status: item.status || 'pending' };
     });
   }
 }
@@ -8099,36 +8102,54 @@ function renderWarehouseOutboundTable() {
   var tbodyJ = document.querySelector('#page-joyfull-outbound tbody');
   if (tbodyJ) {
     tbodyJ.innerHTML = '';
-    warehouseOutboundData.filter(function(r){ return r.warehouse === 'JOYFULL'; }).forEach(function(r) {
-      var tr = document.createElement('tr');
-      tr.className = 'hover:bg-gray-50';
-      if (r.rawId) tr.setAttribute('data-dbid', r.rawId);
-      tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-orange-600">' + r.id + '</td>' +
-        '<td class="px-5 py-3 text-sm">' + r.material + '</td>' +
-        '<td class="px-5 py-3 text-sm font-semibold text-red-600">-' + r.qty + '</td>' +
-        '<td class="px-5 py-3"><span class="badge badge-purple">' + r.destination + '</span></td>' +
-        '<td class="px-5 py-3 text-sm text-gray-500">' + r.relatedOrder + '</td>' +
-        '<td class="px-5 py-3 text-sm text-gray-500">' + r.date + '</td>' +
-        '<td class="px-5 py-3 text-sm">' + r.operator + '</td>';
-      tbodyJ.appendChild(tr);
-    });
+    var rows = warehouseOutboundData.filter(function(r){ return r.warehouse === 'JOYFULL'; });
+    if (rows.length === 0) {
+      tbodyJ.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af;">暂无出库记录 / Tidak ada data pengeluaran</td></tr>';
+    } else {
+      rows.forEach(function(r) {
+        var tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50';
+        if (r.rawId) tr.setAttribute('data-dbid', r.rawId);
+        var statusBadge = r.status === 'approved' ? '<span class="badge badge-green">已批准<br><span class="text-[11px]">Disetujui</span></span>' :
+                          r.status === 'rejected' ? '<span class="badge badge-red">已驳回<br><span class="text-[11px]">Ditolak</span></span>' :
+                          '<span class="badge badge-yellow">待审批<br><span class="text-[11px]">Menunggu</span></span>';
+        tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-orange-600">' + r.id + '</td>' +
+          '<td class="px-5 py-3 text-sm">' + r.material + '</td>' +
+          '<td class="px-5 py-3 text-sm font-semibold text-red-600">-' + r.qty + '</td>' +
+          '<td class="px-5 py-3"><span class="badge badge-purple">' + r.destination + '</span></td>' +
+          '<td class="px-5 py-3 text-sm text-gray-500">' + r.relatedOrder + '</td>' +
+          '<td class="px-5 py-3 text-sm text-gray-500">' + r.date + '</td>' +
+          '<td class="px-5 py-3 text-sm">' + r.operator + '</td>' +
+          '<td class="px-5 py-3 text-sm">' + statusBadge + '</td>';
+        tbodyJ.appendChild(tr);
+      });
+    }
   }
   var tbodyP = document.querySelector('#page-pabrik-outbound tbody');
   if (tbodyP) {
     tbodyP.innerHTML = '';
-    warehouseOutboundData.filter(function(r){ return r.warehouse === 'PABRIK'; }).forEach(function(r) {
-      var tr = document.createElement('tr');
-      tr.className = 'hover:bg-gray-50';
-      if (r.rawId) tr.setAttribute('data-dbid', r.rawId);
-      tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-orange-600">' + r.id + '</td>' +
-        '<td class="px-5 py-3 text-sm">' + r.material + '</td>' +
-        '<td class="px-5 py-3 text-sm font-semibold text-red-600">-' + r.qty + '</td>' +
-        '<td class="px-5 py-3"><span class="badge badge-purple">' + r.destination + '</span></td>' +
-        '<td class="px-5 py-3 text-sm text-gray-500">' + r.relatedOrder + '</td>' +
-        '<td class="px-5 py-3 text-sm text-gray-500">' + r.date + '</td>' +
-        '<td class="px-5 py-3 text-sm">' + r.operator + '</td>';
-      tbodyP.appendChild(tr);
-    });
+    var rows2 = warehouseOutboundData.filter(function(r){ return r.warehouse === 'PABRIK'; });
+    if (rows2.length === 0) {
+      tbodyP.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af;">暂无出库记录 / Tidak ada data pengeluaran</td></tr>';
+    } else {
+      rows2.forEach(function(r) {
+        var tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50';
+        if (r.rawId) tr.setAttribute('data-dbid', r.rawId);
+        var statusBadge = r.status === 'approved' ? '<span class="badge badge-green">已批准<br><span class="text-[11px]">Disetujui</span></span>' :
+                          r.status === 'rejected' ? '<span class="badge badge-red">已驳回<br><span class="text-[11px]">Ditolak</span></span>' :
+                          '<span class="badge badge-yellow">待审批<br><span class="text-[11px]">Menunggu</span></span>';
+        tr.innerHTML = '<td class="px-5 py-3 text-sm font-medium text-orange-600">' + r.id + '</td>' +
+          '<td class="px-5 py-3 text-sm">' + r.material + '</td>' +
+          '<td class="px-5 py-3 text-sm font-semibold text-red-600">-' + r.qty + '</td>' +
+          '<td class="px-5 py-3"><span class="badge badge-purple">' + r.destination + '</span></td>' +
+          '<td class="px-5 py-3 text-sm text-gray-500">' + r.relatedOrder + '</td>' +
+          '<td class="px-5 py-3 text-sm text-gray-500">' + r.date + '</td>' +
+          '<td class="px-5 py-3 text-sm">' + r.operator + '</td>' +
+          '<td class="px-5 py-3 text-sm">' + statusBadge + '</td>';
+        tbodyP.appendChild(tr);
+      });
+    }
   }
 }
 
