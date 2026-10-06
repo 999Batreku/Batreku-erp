@@ -309,6 +309,10 @@ tailwind.config = {
         <input id="cust-name" type="text" placeholder="如：PT Surya Energi Nusantara / Misal: PT Surya Energi Nusantara" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
       </div>
       <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">公司法人实体名称 <span class="text-xs text-gray-400">/ Nama Legal Entitas</span></label>
+        <input id="cust-company" type="text" placeholder="如法律实体全称，可与公司全称相同" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+      </div>
+      <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">公司简称 <span class="text-xs text-gray-400">/ Nama Singkat Perusahaan</span></label>
         <input id="cust-short-name" type="text" placeholder="如：SEN / Misal: SEN" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
       </div>
@@ -513,6 +517,7 @@ tailwind.config = {
     return {
       company_type: document.getElementById('cust-company-type').value,
       name: document.getElementById('cust-name').value,
+      company: document.getElementById('cust-company').value.trim(),
       short_name: document.getElementById('cust-short-name').value,
       tax_number: document.getElementById('cust-tax-number').value,
       address: document.getElementById('cust-address').value,
@@ -578,7 +583,7 @@ tailwind.config = {
           // 清除编辑标记
           document.getElementById('cust-code').removeAttribute('data-edit-id');
           // 清空所有输入框
-          ['cust-company-type','cust-name','cust-short-name','cust-tax-number','cust-address',
+          ['cust-company-type','cust-name','cust-company','cust-short-name','cust-tax-number','cust-address',
            'cust-contact-person','cust-contact-position','cust-phone','cust-email','cust-whatsapp','cust-other-contact',
            'cust-initial-needs','cust-estimated-kw','cust-estimated-kwh','cust-grade','cust-source','cust-salesperson','cust-primary-owner','cust-source-custom'
           ].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
@@ -694,7 +699,8 @@ tailwind.config = {
       var fullInfo = '';
       fullInfo += infoSection('基础信息 / Informasi Dasar', '#6366f1', fieldRows([
         ['客户编码', code], ['公司类型', c.company_type],
-        ['公司全称', c.name], ['公司简称', c.short_name],
+        ['公司全称', c.name], ['法人实体名称', c.company],
+        ['公司简称', c.short_name], ['创建时间', (c.created_at || '').slice(0, 10)],
         ['税号NPWP', c.tax_number, 'md:col-span-2'],
         ['注册地址', c.address, 'md:col-span-2']
       ]));
@@ -1795,9 +1801,11 @@ function filterOutboundList() {
     var set = function(id, val) { var e = el(id); if (e) e.textContent = val || '-'; };
     set('vd-code', c.customer_code || 'CUS-' + String(c.id).padStart(3,'0'));
     set('vd-name', c.name);
+    set('vd-company', c.company);
     set('vd-short', c.short_name);
     set('vd-type', c.company_type);
     set('vd-tax', c.tax_number);
+    set('vd-created', (c.created_at || '').slice(0, 10));
     set('vd-address', c.address);
     set('vd-contact', c.contact_person);
     set('vd-position', c.contact_position);
@@ -1812,6 +1820,7 @@ function filterOutboundList() {
     set('vd-grade', c.grade || '-');
     set('vd-source', c.source_channel || '-');
     set('vd-sales', c.salesperson || '-');
+    set('vd-primary-owner', c.primary_owner || '-');
     set('vd-status', c.approval_status === 'approved' ? '已批准 / Disetujui' : (c.approval_status === 'draft' ? '草稿 / Draft' : '待审批 / Menunggu'));
     set('vd-created', (c.created_at || '').slice(0, 10));
     navigateTo('customer-detail');
@@ -1824,6 +1833,7 @@ function filterOutboundList() {
     document.getElementById('cust-code').value = c.customer_code || ('CUS-' + String(c.id).padStart(3,'0'));
     document.getElementById('cust-company-type').value = c.company_type || '';
     document.getElementById('cust-name').value = c.name || '';
+    document.getElementById('cust-company').value = c.company || '';
     document.getElementById('cust-short-name').value = c.short_name || '';
     document.getElementById('cust-tax-number').value = c.tax_number || '';
     document.getElementById('cust-address').value = c.address || '';
@@ -2091,6 +2101,7 @@ function filterOutboundList() {
     <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
       <div><span class="text-gray-500">客户编码 / Kode:</span><br><span id="vd-code" class="font-mono text-brand-600 font-medium">-</span></div>
       <div><span class="text-gray-500">公司全称 / Nama:</span><br><span id="vd-name" class="font-medium text-gray-900">-</span></div>
+      <div><span class="text-gray-500">法人实体 / Entitas Legal:</span><br><span id="vd-company" class="font-medium text-gray-900">-</span></div>
       <div><span class="text-gray-500">公司简称 / Singkatan:</span><br><span id="vd-short">-</span></div>
       <div><span class="text-gray-500">公司类型 / Tipe:</span><br><span id="vd-type">-</span></div>
       <div><span class="text-gray-500">税号 NPWP:</span><br><span id="vd-tax" class="font-mono">-</span></div>
@@ -2126,7 +2137,8 @@ function filterOutboundList() {
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
       <div><span class="text-gray-500">客户等级 / Level:</span><br><span id="vd-grade" class="font-medium">-</span></div>
       <div><span class="text-gray-500">来源渠道 / Sumber:</span><br><span id="vd-source">-</span></div>
-      <div><span class="text-gray-500">负责业务员 / Sales:</span><br><span id="vd-sales">-</span></div>
+      <div><span class="text-gray-500">业务主负责人 / Pemilik:</span><br><span id="vd-primary-owner">-</span></div>
+      <div><span class="text-gray-500">协助业务员 / Sales:</span><br><span id="vd-sales">-</span></div>
       <div><span class="text-gray-500">审批状态 / Status:</span><br><span id="vd-status">-</span></div>
     </div>
   </div>

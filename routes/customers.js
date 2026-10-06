@@ -88,7 +88,7 @@ module.exports = function(db) {
   router.post('/', async (req, res) => {
     try {
       const {
-        company_type, name, short_name, tax_number, address,
+        company_type, name, company, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, product_types, estimated_kw, estimated_kwh, locations,
         grade, source_channel, primary_owner, salesperson, approval_status
@@ -103,13 +103,13 @@ module.exports = function(db) {
       }
 
       const result = await db.run(`
-        INSERT INTO customers (customer_code, company_type, name, short_name, tax_number, address,
+        INSERT INTO customers (customer_code, company_type, name, company, short_name, tax_number, address,
           contact_person, contact_position, phone, email, whatsapp, other_contact,
           notes, product_types, estimated_kw, estimated_kwh, locations,
           grade, source_channel, primary_owner, salesperson, approval_status, status, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
       `, [
-        code, company_type || '', name || '', short_name || '', tax_number || '', address || '',
+        code, company_type || '', name || '', company || '', short_name || '', tax_number || '', address || '',
         contact_person || '', contact_position || '', phone || '', email || '', whatsapp || '', other_contact || '',
         initial_needs || '', Array.isArray(product_types) ? product_types.join(',') : (product_types || ''),
         estimated_kw || null, estimated_kwh || null,
@@ -128,7 +128,7 @@ module.exports = function(db) {
   router.put('/:id', async (req, res) => {
     try {
       const {
-        company_type, name, short_name, tax_number, address,
+        company_type, name, company, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, product_types, estimated_kw, estimated_kwh, locations,
         grade, source_channel, primary_owner, salesperson, approval_status
@@ -138,6 +138,7 @@ module.exports = function(db) {
         UPDATE customers SET
           company_type = COALESCE(?, company_type),
           name = COALESCE(?, name),
+          company = COALESCE(?, company),
           short_name = COALESCE(?, short_name),
           tax_number = COALESCE(?, tax_number),
           address = COALESCE(?, address),
@@ -160,7 +161,7 @@ module.exports = function(db) {
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [
-        company_type, name, short_name, tax_number, address,
+        company_type, name, company, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, Array.isArray(product_types) ? product_types.join(',') : product_types,
         estimated_kw, estimated_kwh,
