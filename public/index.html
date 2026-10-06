@@ -960,9 +960,9 @@ tailwind.config = {
     var data = res.data || [];
     var myRole = currentUser ? currentUser.role : '';
     // Filter by role: dept_manager sees pending_ops, ops_director sees pending_dept, tech_director sees pending_tech, gm sees pending_gm
-    var statusMap = { 'dept_manager':'pending_dept', 'operations_director':'pending_ops', 'tech_director':'pending_tech', 'general_manager':'pending_gm' };
-    var targetStatus = statusMap[myRole];
-    if (targetStatus) {
+    // Show all pending approvals (not filtered by role)
+    var targetStatus = null;
+    if (false) {
       data = data.filter(function(item){ return item.approval_status === targetStatus; });
     }
     if (data.length === 0) { listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批出库申请 / Tidak ada permohonan keluar yang menunggu persetujuan</div>'; return; }
@@ -971,7 +971,7 @@ tailwind.config = {
 
   function renderOutboundApprovals(data, listEl) {
     var role = currentUser ? currentUser.role : '';
-    var statusMap = { 'pending_ops':'dept_manager', 'pending_dept':'operations_director', 'pending_tech':'tech_director', 'pending_gm':'general_manager' };
+    var statusMap = { 'pending_dept':'dept_manager', 'pending_ops':'operations_director', 'pending_tech':'tech_director', 'pending_gm':'general_manager' };
     var myApprovalRole = statusMap[data[0] ? data[0].approval_status : ''];
     var canApprove = myApprovalRole && role === myApprovalRole;
     var html = '';
