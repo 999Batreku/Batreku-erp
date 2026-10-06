@@ -8216,7 +8216,7 @@ var outgoingPaymentData = [];
 var invoiceData = [];
 var voucherData = [];
 async function loadFinanceData() {
-  var resPay = await apiCall('GET', '/finance/payments');
+  var resPay = await apiCall('GET', '/finance/receipts');
   if (resPay && resPay.success && resPay.data) {
     paymentData = resPay.data.map(function(p) {
       return { rawId: p.id, id: p.payment_no || ('PAY-' + p.id), order: p.order_no || '', customer: p.customer_name || '', receivable: 'IDR ' + (p.receivable_amount || 0).toLocaleString(), received: 'IDR ' + (p.received_amount || 0).toLocaleString(), method: p.payment_method || '转账', date: (p.payment_date || p.created_at || '').slice(0,10), status: p.status === 'confirmed' ? '已到账' : (p.status || '待确认'), entityName: p.entity_name || '', entityCode: p.entity_code || '', dataStatus: p.status || 'completed' };
@@ -8234,8 +8234,8 @@ async function loadFinanceData() {
   // Invoice and voucher data - keep HTML fallback
   invoiceData = [];
   voucherData = [];
-  // Load outgoing payments
-  var resOutPay = await apiCall('GET', '/finance/outgoing-payments');
+  // Load outgoing payments (后端 GET /finance/payments 返回付款记录)
+  var resOutPay = await apiCall('GET', '/finance/payments');
   if (resOutPay && resOutPay.success && resOutPay.data) {
     outgoingPaymentData = resOutPay.data.map(function(p) {
       return { rawId: p.id, id: p.payment_no || ('OP-' + p.id), procurement: p.request_no || '', supplier: p.supplier_name || '', amount: 'IDR ' + (p.amount || 0).toLocaleString(), method: p.payment_method || '转账', date: (p.payment_date || p.created_at || '').slice(0,10), entityName: p.entity_name || '', status: '已付款', dataStatus: 'completed' };

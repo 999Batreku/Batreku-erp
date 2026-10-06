@@ -61,8 +61,27 @@ module.exports = function(db) {
     return flow[0] || 'pending_ops';
   }
 
-  // GET /api/procurement — 支持实体 + 状态筛选
-  router.get('/', async (req, res) => {
+  // GET /api/procurement/materials — 物料列表（支持按实体过滤）
+  router.get('/materials', async (req, res) => {
+    try {
+      const { entity_id } = req.query;
+      let query = 'SELECT m.*, e.name as entity_name, e.code as entity_code FROM materials m LEFT JOIN entities e ON m.entity_id = e.id WHERE m.status = \'active\'';
+      let params = [];
+      if (entity_id) {
+        query += ' AND m.entity_id = $' + (params.length + 1);
+        params.push(entity_id);
+      }
+      query += ' ORDER BY m.name';
+      const materials = await db.query(query, params);
+      res.json({ success: true, data: materials.rows });
+    } catch (err) {
+      console.error('List materials error:', err);
+      res.json({ success: true, data: [] });
+    }
+  });
+
+  // GET /api/procurement/requests — 支持实体 + 状态筛选
+  router.get('/requests', async (req, res) => {
     try {
       const { entity_id, status } = req.query;
       let where = [];
@@ -105,7 +124,7 @@ module.exports = function(db) {
   });
 
   // GET /api/procurement/:id
-  router.get('/:id', async (req, res) => {
+  router.get('/requests/:id', async (req, res) => {
     try {
       const p = await db.get(`
         SELECT p.*, s.name as supplier_name,
@@ -138,7 +157,7 @@ module.exports = function(db) {
   });
 
   // POST /api/procurement — 创建采购申请（必须指定 entity_id）
-  router.post('/', async (req, res) => {
+  router.post('/requests', async (req, res) => {
     try {
       const { request_no, order_id, title, supplier_id, currency, notes, items, entity_id, target_entity_id } = req.body;
 
@@ -184,7 +203,7 @@ module.exports = function(db) {
   });
 
   // POST /api/procurement/:id/submit — 提交审批（根据实体设定初始状态）
-  router.post('/:id/submit', async (req, res) => {
+  router.post('/requests/:id/submit', async (req, res) => {
     try {
       const id = req.params.id;
       const p = await db.get('SELECT status, entity_id FROM procurement_requests WHERE id = ?', [id]);
@@ -205,7 +224,7 @@ module.exports = function(db) {
   });
 
   // PUT /api/procurement/:id/approve — 差异化审批流
-  router.put('/:id/approve', async (req, res) => {
+  router.put('/requests/:id/approve', async (req, res) => {
     try {
       const id = req.params.id;
       const { comment, signature } = req.body || {};
@@ -282,7 +301,7 @@ module.exports = function(db) {
   });
 
   // PUT /api/procurement/:id/reject
-  router.put('/:id/reject', async (req, res) => {
+  router.put('/requests/:id/reject', async (req, res) => {
     try {
       const id = req.params.id;
       const { comment } = req.body || {};
