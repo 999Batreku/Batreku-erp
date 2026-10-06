@@ -95,11 +95,13 @@ module.exports = function(db) {
       } = req.body;
 
       // 自动生成客户编码
-      const lastCustomer = await db.get("SELECT customer_code FROM customers ORDER BY id DESC LIMIT 1", []);
+      const lastCustomer = await db.get("SELECT customer_code FROM customers WHERE customer_code LIKE 'CUS-%' AND customer_code != 'CUS-NaN' ORDER BY id DESC LIMIT 1", []);
       let code = 'CUS-001';
       if (lastCustomer && lastCustomer.customer_code) {
-        const num = parseInt(lastCustomer.customer_code.replace('CUS-', '')) + 1;
-        code = 'CUS-' + String(num).padStart(3, '0');
+        const num = parseInt(lastCustomer.customer_code.replace('CUS-', ''));
+        if (!isNaN(num)) {
+          code = 'CUS-' + String(num + 1).padStart(3, '0');
+        }
       }
 
       const result = await db.run(`
