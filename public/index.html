@@ -630,14 +630,14 @@ tailwind.config = {
     if (wrap) wrap.classList.remove('hidden');
 
     listEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">加载中...</div>';
-    var res = await apiCall('GET', '/customers?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm');
+    var res = await apiCall('GET', '/customers?approval_status=pending_ops&approval_status=pending_tech&approval_status=pending_gm&approval_status=approved');
     if (!res || !res.success) {
       listEl.innerHTML = '<div class="text-center text-red-400 text-sm py-8">加载失败</div>';
       return;
     }
     var data = res.data || [];
     if (data.length === 0) {
-      listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无待审批客户 / Tidak ada pelanggan yang menunggu persetujuan</div>';
+      listEl.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400 text-sm">🎉 暂无客户记录 / Tidak ada data pelanggan</div>';
       return;
     }
     renderCustomerApprovals(data);
@@ -647,17 +647,42 @@ tailwind.config = {
     var listEl = document.getElementById('approval-customer-list');
     var gradeBadge = {'A':'badge-blue','B':'badge-green','C':'badge-yellow','D':'badge-gray'};
     var roleMap = { 'operations_director':'运营总监', 'tech_director':'技术总监', 'general_manager':'总经理' };
-    var levelMap = { 'pending_ops':'运营总监审批中', 'pending_tech':'技术总监审批中', 'pending_gm':'总经理审批中' };
-    var levelColorMap = { 'pending_ops':'badge-yellow', 'pending_tech':'badge-blue', 'pending_gm':'badge-green' };
+    var levelMap = { 'pending_ops':'运营总监审批中', 'pending_tech':'技术总监审批中', 'pending_gm':'总经理审批中', 'approved':'已审批 / Disetujui' };
+    var levelColorMap = { 'pending_ops':'badge-yellow', 'pending_tech':'badge-blue', 'pending_gm':'badge-green', 'approved':'badge-green' };
     var myRole = currentUser ? currentUser.role : '';
     var levelRoleMap = { 'pending_ops':'operations_director', 'pending_tech':'tech_director', 'pending_gm':'general_manager' };
     console.log('审批页面渲染 - 当前角色:', myRole);
+
+    // 排序：待审批按 pending_ops → pending_tech → pending_gm 排前面，已审批放最后
+    var statusOrder = { 'pending_ops': 0, 'pending_tech': 1, 'pending_gm': 2, 'approved': 3 };
+    data.sort(function(a, b) {
+      var oa = statusOrder[a.approval_status] !== undefined ? statusOrder[a.approval_status] : 9;
+      var ob = statusOrder[b.approval_status] !== undefined ? statusOrder[b.approval_status] : 9;
+      if (oa !== ob) return oa - ob;
+      return (b.id || 0) - (a.id || 0); // 同级别按ID倒序（新的在前）
+    });
+
     var html = '';
+    var pendingCount = 0, approvedCount = 0;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i].approval_status === 'approved') approvedCount++; else pendingCount++;
+    }
+
+    // 分区标题：待审批
+    if (pendingCount > 0) {
+      html += '<div class="flex items-center gap-2 mb-3"><span class="text-base font-bold text-gray-800">待审批客户 / Menunggu Persetujuan</span><span class="badge badge-yellow">' + pendingCount + '</span></div>';
+    }
+    // 分区标题：已审批
+    if (approvedCount > 0) {
+      html += '<div class="flex items-center gap-2 mb-3 mt-2"><span class="text-base font-bold text-gray-800">已审批客户 / Pelanggan Disetujui</span><span class="badge badge-green">' + approvedCount + '</span></div>';
+    }
+
     for (var i = 0; i < data.length; i++) {
       var c = data[i];
       var g = normGrade(c.grade);
       var code = c.customer_code || ('CUS-' + String(c.id).padStart(3, '0'));
       var aStatus = c.approval_status || 'pending_ops';
+      var isApproved = (aStatus === 'approved');
       var isMyTurn = (levelRoleMap[aStatus] === myRole);
       var isOpsLevel = (aStatus === 'pending_ops');
 
@@ -748,7 +773,7 @@ tailwind.config = {
             +   '</div>'
             + '</div>';
         }
-      } else {
+      } else if (!isApproved) {
         inputSection = '<div class="border-t border-gray-100 pt-3 mb-3">'
           + '<div class="text-sm text-gray-400 py-2">⏳ 等待 ' + (roleMap[levelRoleMap[aStatus]] || '') + ' 审批 / Menunggu persetujuan ' + (roleMap[levelRoleMap[aStatus]] || '') + '</div>'
           + '<input id="approval-code-' + c.id + '" type="hidden" value="' + code + '">'
@@ -758,30 +783,71 @@ tailwind.config = {
 
       var approveBtnText = isOpsLevel && isMyTurn ? '✅ 通过并发放编码' : '✅ 审批通过';
       var actionButtons = '';
-      if (isMyTurn) {
+      if (isMyTurn && !isApproved) {
         actionButtons = '<div class="flex gap-2">'
           +   '<button class="btn-success" onclick="handleCustomerApproval(' + c.id + ',\'approve\')">' + approveBtnText + '</button>'
           +   '<button class="btn-danger" onclick="handleCustomerApproval(' + c.id + ',\'reject\')">❌ 驳回<br><span class="text-[11px] text-gray-400">❌ Tolak</span></button>'
           + '</div>';
-      } else {
+      } else if (!isApproved) {
         actionButtons = '<div class="text-xs text-gray-400 py-1">当前不在您的审批环节 / Bukan giliran Anda</div>';
       }
 
-      html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">'
-        + '<div class="flex items-center justify-between mb-3">'
-        +   '<div class="flex items-center gap-2">'
-        +     levelBadge
-        +     '<span class="text-sm font-medium text-gray-800">' + (c.name || '') + '</span>'
-        +     '<span class="badge ' + (gradeBadge[g] || 'badge-gray') + '">' + g + '级</span>'
-        +   '</div>'
-        +   '<span class="text-xs text-gray-400 font-mono">#' + c.id + '</span>'
-        + '</div>'
-        + fullInfo
-        + inputSection
-        + actionButtons
-        + '</div>';
+      // 已审批客户：折叠显示关键信息 + 展开按钮
+      if (isApproved) {
+        var shortInfo = '<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-sm">'
+          + '<div class="flex items-start gap-2"><span class="text-gray-400 shrink-0">客户编码：</span><span class="text-gray-800 font-mono">' + code + '</span></div>'
+          + '<div class="flex items-start gap-2"><span class="text-gray-400 shrink-0">公司全称：</span><span class="text-gray-800">' + (c.name || '-') + '</span></div>'
+          + '<div class="flex items-start gap-2"><span class="text-gray-400 shrink-0">公司类型：</span><span class="text-gray-800">' + (c.company_type || '-') + '</span></div>'
+          + '<div class="flex items-start gap-2"><span class="text-gray-400 shrink-0">客户等级：</span><span class="badge ' + (gradeBadge[g] || 'badge-gray') + '">' + g + '级</span></div>'
+          + '<div class="flex items-start gap-2"><span class="text-gray-400 shrink-0">业务主负责人：</span><span class="text-gray-800">' + (c.primary_owner || '-') + '</span></div>'
+          + '<div class="flex items-start gap-2"><span class="text-gray-400 shrink-0">创建时间：</span><span class="text-gray-800">' + ((c.created_at || '').slice(0, 10) || '-') + '</span></div>'
+          + '</div>';
+
+        html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-3">'
+          + '<div class="flex items-center justify-between mb-2">'
+          +   '<div class="flex items-center gap-2">'
+          +     levelBadge
+          +     '<span class="text-sm font-medium text-gray-800">' + (c.name || '') + '</span>'
+          +   '</div>'
+          +   '<span class="text-xs text-gray-400 font-mono">#' + c.id + '</span>'
+          + '</div>'
+          + '<div id="cust-detail-' + c.id + '">' + shortInfo + '</div>'
+          + '<div id="cust-full-' + c.id + '" style="display:none;">' + fullInfo + '</div>'
+          + '<div class="mt-2 pt-2 border-t border-gray-100">'
+          +   '<button class="text-xs text-brand-600 hover:text-brand-700 hover:underline cursor-pointer" onclick="toggleCustDetail(' + c.id + ')" id="cust-toggle-' + c.id + '">📋 查看完整信息 / Lihat Detail Lengkap</button>'
+          + '</div>'
+          + '</div>';
+      } else {
+        html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-3">'
+          + '<div class="flex items-center justify-between mb-3">'
+          +   '<div class="flex items-center gap-2">'
+          +     levelBadge
+          +     '<span class="text-sm font-medium text-gray-800">' + (c.name || '') + '</span>'
+          +     '<span class="badge ' + (gradeBadge[g] || 'badge-gray') + '">' + g + '级</span>'
+          +   '</div>'
+          +   '<span class="text-xs text-gray-400 font-mono">#' + c.id + '</span>'
+          + '</div>'
+          + fullInfo
+          + inputSection
+          + actionButtons
+          + '</div>';
+      }
     }
+
     listEl.innerHTML = html;
+  }
+
+  function toggleCustDetail(id) {
+    var fullEl = document.getElementById('cust-full-' + id);
+    var toggleBtn = document.getElementById('cust-toggle-' + id);
+    if (!fullEl) return;
+    if (fullEl.style.display === 'none') {
+      fullEl.style.display = 'block';
+      if (toggleBtn) toggleBtn.textContent = '🔼 收起详细信息 / Sembunyikan Detail';
+    } else {
+      fullEl.style.display = 'none';
+      if (toggleBtn) toggleBtn.textContent = '📋 查看完整信息 / Lihat Detail Lengkap';
+    }
   }
 
   async function handleCustomerApproval(id, action) {
