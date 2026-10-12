@@ -1275,7 +1275,7 @@ tailwind.config = {
         + '<td class="px-5 py-3.5 text-sm text-gray-600">' + (c.whatsapp || c.phone || '-') + '</td>'
         + '<td class="px-5 py-3.5"><span class="badge ' + (gradeBadge[g] || 'badge-gray') + '">' + (gradeLabel[g] || g || '-') + '</span></td>'
         + '<td class="px-5 py-3.5">' + statusBadge(c.approval_status) + '</td>'
-        + '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-3" onclick="viewCustomer(' + c.id + ')">查看<br><span class="text-[11px]">Lihat</span></button><button class="text-gray-500 text-sm hover:underline mr-3" onclick="editCustomer(' + c.id + ')">编辑<br><span class="text-[11px]">Edit</span></button><button class="text-blue-600 text-sm hover:underline mr-3" onclick="switchPage(\'page-customer-follow-new\')">跟进<br><span class="text-[11px]">Tindak Lanjuti</span></button>' + (currentUser && currentUser.role === 'general_manager' ? '<button class="text-red-500 text-sm hover:underline" onclick="deleteCustomer(' + c.id + ',\'' + (c.name||'').replace(/'/g,"\\'") + '\')">删除<br><span class="text-[11px]">Hapus</span></button>' : '') + '</td>'
+        + '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-3" onclick="viewCustomer(' + c.id + ')">查看<br><span class="text-[11px]">Lihat</span></button><button class="text-gray-500 text-sm hover:underline mr-3" onclick="editCustomer(' + c.id + ')">编辑<br><span class="text-[11px]">Edit</span></button><button class="text-blue-600 text-sm hover:underline mr-3" onclick="openFollowUpForCustomer(' + c.id + ')">跟进<br><span class="text-[11px]">Tindak Lanjuti</span></button>' + (currentUser && currentUser.role === 'general_manager' ? '<button class="text-red-500 text-sm hover:underline" onclick="deleteCustomer(' + c.id + ',\'' + (c.name||'').replace(/'/g,"\\'") + '\')">删除<br><span class="text-[11px]">Hapus</span></button>' : '') + '</td>'
         + '</tr>';
     }
     tbody.innerHTML = html;
@@ -1326,7 +1326,7 @@ tailwind.config = {
           + '<td class="px-5 py-3.5 text-sm text-gray-600">' + (c.whatsapp || c.phone || '-') + '</td>'
           + '<td class="px-5 py-3.5"><span class="badge ' + (gradeBadge[g] || 'badge-gray') + '">' + (gradeLabel[g] || g || '-') + '</span></td>'
           + '<td class="px-5 py-3.5">' + statusBadge(c.approval_status) + '</td>'
-          + '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-3" onclick="viewCustomer(' + c.id + ')">查看<br><span class="text-[11px]">Lihat</span></button><button class="text-gray-500 text-sm hover:underline mr-3" onclick="editCustomer(' + c.id + ')">编辑<br><span class="text-[11px]">Edit</span></button><button class="text-blue-600 text-sm hover:underline mr-3" onclick="switchPage(\'page-customer-follow-new\')">跟进<br><span class="text-[11px]">Tindak Lanjuti</span></button>' + (isGM() ? '<button class="text-red-500 text-sm hover:underline" onclick="deleteCustomer(' + c.id + ',\'' + (c.name||'').replace(/'/g,"\\'") + '\')">删除<br><span class="text-[11px]">Hapus</span></button>' : '') + '</td>'
+          + '<td class="px-5 py-3.5"><button class="text-brand-600 text-sm hover:underline mr-3" onclick="viewCustomer(' + c.id + ')">查看<br><span class="text-[11px]">Lihat</span></button><button class="text-gray-500 text-sm hover:underline mr-3" onclick="editCustomer(' + c.id + ')">编辑<br><span class="text-[11px]">Edit</span></button><button class="text-blue-600 text-sm hover:underline mr-3" onclick="openFollowUpForCustomer(' + c.id + ')">跟进<br><span class="text-[11px]">Tindak Lanjuti</span></button>' + (isGM() ? '<button class="text-red-500 text-sm hover:underline" onclick="deleteCustomer(' + c.id + ',\'' + (c.name||'').replace(/'/g,"\\'") + '\')">删除<br><span class="text-[11px]">Hapus</span></button>' : '') + '</td>'
           + '</tr>';
       }
       tbody.innerHTML = html;
@@ -2013,13 +2013,20 @@ function filterOutboundList() {
   }
 
   // ===== 客户跟进记录功能 =====
+  var _followUpPreselectCustomerId = null;
+  var _followUpFiles = [];
   var _followUpDebounceTimer = null;
+
+  // 从客户列表点击跟进：自动预填客户并加载项目地点
+  function openFollowUpForCustomer(custId) {
+    _followUpPreselectCustomerId = custId;
+    switchPage('page-customer-follow-new');
+  }
   function debounceLoadFollowUp() {
     clearTimeout(_followUpDebounceTimer);
     _followUpDebounceTimer = setTimeout(function() { loadFollowUpList(); }, 400);
   }
 
-  // 加载客户下拉选项（筛选栏 + 新建表单共用）
   async function loadFollowUpCustomerOptions() {
     var res = await apiCall('GET', '/followups/customers');
     if (!res || !res.success) return;
@@ -2214,9 +2221,19 @@ function filterOutboundList() {
     };
     if (location) payload.location_name = location;
 
-    var res = await apiCall('POST', '/followups', payload);
+    // 有附件时使用 FormData 上传
+    if (_followUpFiles && _followUpFiles.length > 0) {
+      var formData = new FormData();
+      Object.keys(payload).forEach(function(k) { formData.append(k, payload[k]); });
+      _followUpFiles.forEach(function(f) { formData.append('files', f); });
+
+      var res = await apiCall('POST', '/followups', formData, true);
+    } else {
+      var res = await apiCall('POST', '/followups', payload);
+    }
     if (res && res.success) {
       alert('跟进记录保存成功 / Catatan tersimpan');
+      _followUpFiles = [];
       resetFollowUpForm();
       switchPage('page-customer-follow');
     } else {
@@ -2234,7 +2251,60 @@ function filterOutboundList() {
         else el.value = '';
       }
     });
+    // 清空文件列表
+    var fileList = document.getElementById('fu-file-list');
+    if (fileList) fileList.innerHTML = '';
+    var fileInput = document.getElementById('fu-file-input');
+    if (fileInput) fileInput.value = '';
   }
+
+  // 跟进记录：文件选择回调
+  function onFollowUpFileSelected(input) {
+    if (!input.files || input.files.length === 0) return;
+    for (var i = 0; i < input.files.length; i++) {
+      _followUpFiles.push(input.files[i]);
+    }
+    renderFollowUpFileList();
+    input.value = ''; // 重置以便重复选择同文件
+  }
+
+  function renderFollowUpFileList() {
+    var container = document.getElementById('fu-file-list');
+    if (!container) return;
+    container.innerHTML = '';
+    _followUpFiles.forEach(function(f, idx) {
+      var sizeStr = f.size < 1024 ? f.size + ' B' : f.size < 1048576 ? (f.size/1024).toFixed(1) + ' KB' : (f.size/1048576).toFixed(1) + ' MB';
+      container.innerHTML += '<div class="flex items-center justify-between bg-gray-50 rounded px-3 py-1.5 text-sm">'
+        + '<span class="text-gray-700 truncate flex-1">📎 ' + f.name + ' <span class="text-gray-400">(' + sizeStr + ')</span></span>'
+        + '<button class="text-red-500 hover:text-red-700 ml-2 text-xs" onclick="removeFollowUpFile(' + idx + ')">✕ 移除</button>'
+        + '</div>';
+    });
+  }
+
+  function removeFollowUpFile(idx) {
+    _followUpFiles.splice(idx, 1);
+    renderFollowUpFileList();
+  }
+
+  // 拖拽上传支持
+  (function() {
+    var area = document.getElementById('fu-upload-area');
+    if (!area) return;
+    area.addEventListener('dragover', function(e) { e.preventDefault(); area.style.borderColor = '#3b82f6'; area.style.backgroundColor = '#eff6ff'; });
+    area.addEventListener('dragleave', function(e) { e.preventDefault(); area.style.borderColor = ''; area.style.backgroundColor = ''; });
+    area.addEventListener('drop', function(e) {
+      e.preventDefault();
+      area.style.borderColor = '';
+      area.style.backgroundColor = '';
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        var input = document.getElementById('fu-file-input');
+        var dt = new DataTransfer();
+        for (var i = 0; i < e.dataTransfer.files.length; i++) dt.items.add(e.dataTransfer.files[i]);
+        input.files = dt.files;
+        onFollowUpFileSelected(input);
+      }
+    });
+  })();
   </script>
 </div>
 
@@ -2445,11 +2515,13 @@ function filterOutboundList() {
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">附件上传 <span class="text-xs text-gray-400 font-normal">/ Unggah Lampiran</span></label>
-          <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer">
+          <div id="fu-upload-area" class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer" onclick="document.getElementById('fu-file-input').click()">
             <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
             <p class="text-sm text-gray-500">点击或拖拽上传文件 / Klik atau seret file untuk mengunggah</p>
             <p class="text-xs text-gray-400 mt-1">支持图片、PDF、文档等格式 / Mendukung format gambar, PDF, dokumen, dll.</p>
+            <input id="fu-file-input" type="file" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip" onchange="onFollowUpFileSelected(this)" multiple>
           </div>
+          <div id="fu-file-list" class="mt-2 space-y-1"></div>
         </div>
       </div>
 
@@ -5305,13 +5377,14 @@ if (authToken) {
   setLastActivity();
 }
 
-async function apiCall(method, endpoint, data) {
+async function apiCall(method, endpoint, data, isFormData) {
   var opts = {
     method: method,
-    headers: { 'Content-Type': 'application/json' }
+    headers: {}
   };
+  if (!isFormData) opts.headers['Content-Type'] = 'application/json';
   if (authToken) opts.headers['Authorization'] = 'Bearer ' + authToken;
-  if (data) opts.body = JSON.stringify(data);
+  if (data) opts.body = isFormData ? data : JSON.stringify(data);
   try {
     var res = await fetch(API_BASE + endpoint, opts);
     if (res.status === 401) { authToken = ''; localStorage.removeItem('batreku_token'); showLoginPage(); return null; }
@@ -6286,7 +6359,24 @@ function navigateTo(pageId) {
     }
     if (pageId === 'approval-pending') { switchApprovalModule('customer'); }
     if (pageId === 'customer-follow') { loadFollowUpList(); loadFollowUpCustomerOptions(); }
-    if (pageId === 'customer-follow-new') { loadFollowUpCustomerOptions(); resetFollowUpForm(); }
+    if (pageId === 'customer-follow-new') {
+      loadFollowUpCustomerOptions().then(function() {
+        resetFollowUpForm();
+        if (_followUpPreselectCustomerId) {
+          var sel = document.getElementById('fu-customer');
+          if (sel) {
+            sel.value = String(_followUpPreselectCustomerId);
+            onFollowUpCustomerChange();
+          }
+          _followUpPreselectCustomerId = null;
+        }
+        // 设置跟进日期为今天
+        var dateEl = document.getElementById('fu-date');
+        if (dateEl && (!dateEl.value || dateEl.value === '2025-06-15')) {
+          dateEl.value = new Date().toISOString().split('T')[0];
+        }
+      });
+    }
     if (pageId === 'order-list') { loadOrderData(); renderOrderTable(); }
     if (pageId === 'order-track') loadOrderTrack();
     if (pageId === 'order-new') loadOrderCustomers();
