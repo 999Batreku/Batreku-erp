@@ -46,8 +46,10 @@ module.exports = function(db) {
       const isViewer = hasRole(userRoles, 'operations_director') || hasRole(userRoles, 'technical_director') || hasRole(userRoles, 'general_manager');
       // 数据权限：销售只能看自己录入的（兼容老数据 created_by 为 NULL 的情况）
       const ownerFilter = isViewer ? '' : ' AND (created_by IS NULL OR created_by = ?)';
-      const baseParams = isViewer ? [] : [req.user.id];
-      const baseSql = 'SELECT * FROM customers WHERE 1=1' + ownerFilter;
+      // 审批列表自审拦截：有审批角色的用户看不到自己创建的待审批记录
+      const selfApprovalFilter = isViewer ? ' AND (created_by IS NULL OR created_by != ?)' : '';
+      const baseParams = isViewer ? (selfApprovalFilter ? [req.user.id] : []) : [req.user.id];
+      const baseSql = 'SELECT * FROM customers WHERE 1=1' + ownerFilter + selfApprovalFilter;
 
       let customers;
       const statusFilter = req.query.approval_status;
@@ -131,6 +133,31 @@ module.exports = function(db) {
         grade || '', source_channel || '', primary_owner || '', salesperson || '', approval_status || 'pending_ops',
         req.user.id
       ]);
+
+      // 自审拦截：创建人如果拥有审批角色，自动跳过对应审批级别
+      const creatorRoles = req.user.roles || [];
+      let finalStatus = approval_status || 'pending_ops';
+      const creatorId = req.user.id;
+      const approvalFlow = ['pending_ops', 'pending_tech', 'pending_gm'];
+      const levelRoleMap = {
+        'pending_ops': 'operations_director',
+        'pending_tech': 'technical_director',
+        'pending_gm': 'general_manager'
+      };
+      for (let i = 0; i < approvalFlow.length; i++) {
+        const level = approvalFlow[i];
+        const levelRole = levelRoleMap[level];
+        if (creatorRoles.includes(levelRole)) {
+          // 创建人有该级别的审批角色，跳过到下一级
+          finalStatus = (i < approvalFlow.length - 1) ? approvalFlow[i + 1] : 'approved';
+        } else {
+          // 创建人没有该级别的审批角色，停在这一级
+          break;
+        }
+      }
+      if (finalStatus !== (approval_status || 'pending_ops')) {
+        await db.run('UPDATE customers SET approval_status = ? WHERE id = ?', [finalStatus, result.lastInsertRowid]);
+      }
 
       res.json({ success: true, data: { id: result.lastInsertRowid, customer_code: code } });
     } catch (e) {

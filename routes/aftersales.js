@@ -29,6 +29,13 @@ module.exports = function(db) {
         params.push(`%${keyword}%`, `%${keyword}%`);
       }
 
+      // 审批列表自审拦截
+      const creatorRoles = req.user.roles || [];
+      if (creatorRoles.includes('operations_director') || creatorRoles.includes('technical_director') || creatorRoles.includes('general_manager')) {
+        sql += ' AND (created_by IS NULL OR created_by != ?)';
+        params.push(req.user.id);
+      }
+
       sql += ' ORDER BY id DESC';
       const rows = await db.all(sql, params);
       res.json({ success: true, data: rows });
@@ -64,6 +71,20 @@ module.exports = function(db) {
         d.sla_deadline || null, req.user.id
       ]);
 
+      // 自审拦截：创建人如果有审批角色，自动跳过对应审批级别
+      const creatorRoles = req.user.roles || [];
+      const approvalFlow = ['pending_ops', 'pending_tech', 'pending_gm'];
+      const levelRoleMap = { 'pending_ops': 'operations_director', 'pending_tech': 'technical_director', 'pending_gm': 'general_manager' };
+      let finalStatus = 'pending_ops';
+      for (let i = 0; i < approvalFlow.length; i++) {
+        if (creatorRoles.includes(levelRoleMap[approvalFlow[i]])) {
+          finalStatus = (i < approvalFlow.length - 1) ? approvalFlow[i + 1] : 'approved';
+        } else { break; }
+      }
+      if (finalStatus !== 'pending_ops') {
+        await db.run('UPDATE aftersales_tickets SET approval_status = ? WHERE id = ?', [finalStatus, result.lastInsertRowid]);
+      }
+
       res.json({ success: true, data: { id: result.lastInsertRowid, ticket_no: ticketNo }, message: '售后工单创建成功，已提交审批' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
@@ -79,8 +100,20 @@ module.exports = function(db) {
       if (row.approval_status && row.approval_status !== 'pending_ops' && !['draft', 'new'].includes(row.approval_status)) {
         return res.json({ success: false, error: '当前状态不允许提交' });
       }
-      await db.run(`UPDATE aftersales_tickets SET approval_status = 'pending_ops', approval_chain = '[]', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
-      res.json({ success: true, message: '已提交审批，等待运营总监审批' });
+
+      // 自审拦截：提交人如果有审批角色，自动跳过对应级别
+      const creatorRoles = req.user.roles || [];
+      const approvalFlow = ['pending_ops', 'pending_tech', 'pending_gm'];
+      const levelRoleMap = { 'pending_ops': 'operations_director', 'pending_tech': 'technical_director', 'pending_gm': 'general_manager' };
+      let finalStatus = 'pending_ops';
+      for (let i = 0; i < approvalFlow.length; i++) {
+        if (creatorRoles.includes(levelRoleMap[approvalFlow[i]])) {
+          finalStatus = (i < approvalFlow.length - 1) ? approvalFlow[i + 1] : 'approved';
+        } else { break; }
+      }
+
+      await db.run(`UPDATE aftersales_tickets SET approval_status = ?, approval_chain = '[]', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [finalStatus, id]);
+      res.json({ success: true, message: finalStatus === 'approved' ? '已提交并自动审批通过' : '已提交审批，已自动跳过您的审批级别' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }

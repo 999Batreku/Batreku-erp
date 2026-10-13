@@ -27,6 +27,14 @@ module.exports = function(db) {
       if (channel) { sql += ' AND channel = ?'; params.push(channel); }
       if (keyword) { sql += ' AND (company_name LIKE ? OR inquiry_no LIKE ? OR contact_person LIKE ?)'; params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`); }
 
+      // 审批列表自审拦截：有审批角色的用户看不到自己创建的待审批记录
+      const userRolesForFilter = req.user.roles || [];
+      const hasApprovalRole = userRolesForFilter.includes('operations_director') || userRolesForFilter.includes('technical_director');
+      if (hasApprovalRole) {
+        sql += ' AND (created_by IS NULL OR created_by != ?)';
+        params.push(req.user.id);
+      }
+
       sql += ' ORDER BY id DESC';
       const rows = await db.all(sql, params);
       res.json({ success: true, data: rows });
@@ -63,6 +71,20 @@ module.exports = function(db) {
         d.urgency || '普通', d.source_detail, d.notes, d.status || 'new', d.assigned_to, req.user.id
       ]);
 
+      // 自审拦截：创建人如果有审批角色，自动跳过对应审批级别
+      const creatorRoles = req.user.roles || [];
+      const inquiryApprovalFlow = ['pending_ops', 'pending_tech'];
+      const inquiryLevelRoleMap = {
+        'pending_ops': 'operations_director',
+        'pending_tech': 'technical_director'
+      };
+      let inquiryFinalStatus = 'pending_tech';
+      // 默认是 pending_tech，检查 tech director 是否需要跳过
+      if (creatorRoles.includes('technical_director')) {
+        inquiryFinalStatus = 'approved';
+        await db.run('UPDATE inquiries SET approval_status = ? WHERE id = ?', [inquiryFinalStatus, result.lastInsertRowid]);
+      }
+
       res.json({ success: true, data: { id: result.lastInsertRowid, inquiry_no: inquiryNo }, message: '询盘创建成功，已提交审批' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
@@ -78,10 +100,22 @@ module.exports = function(db) {
       if (row.approval_status && row.approval_status !== 'pending_ops' && !['new', 'draft'].includes(row.approval_status)) {
         return res.json({ success: false, error: '当前状态不允许提交' });
       }
-      await db.run(`UPDATE inquiries SET approval_status = 'pending_ops', approval_chain = '[]', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+
+      // 自审拦截：提交人如果有审批角色，自动跳过对应级别
+      const creatorRoles = req.user.roles || [];
+      const inquiryApprovalFlow = ['pending_ops', 'pending_tech'];
+      const inquiryLevelRoleMap = { 'pending_ops': 'operations_director', 'pending_tech': 'technical_director' };
+      let inquiryFinalStatus = 'pending_ops';
+      for (let i = 0; i < inquiryApprovalFlow.length; i++) {
+        if (creatorRoles.includes(inquiryLevelRoleMap[inquiryApprovalFlow[i]])) {
+          inquiryFinalStatus = (i < inquiryApprovalFlow.length - 1) ? inquiryApprovalFlow[i + 1] : 'approved';
+        } else { break; }
+      }
+
+      await db.run(`UPDATE inquiries SET approval_status = ?, approval_chain = '[]', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [inquiryFinalStatus, id]);
       await db.run('INSERT INTO approval_records (target_type, target_id, action, approver_id, comment) VALUES (?, ?, ?, ?, ?)',
         ['inquiry', id, 'submit', req.user.id, '提交询盘审批']);
-      res.json({ success: true, message: '已提交审批，等待运营总监审核' });
+      res.json({ success: true, message: inquiryFinalStatus === 'approved' ? '已提交并自动审批通过' : '已提交审批，已自动跳过您的审批级别' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
