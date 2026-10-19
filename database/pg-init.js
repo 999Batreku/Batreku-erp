@@ -289,6 +289,19 @@ CREATE TABLE IF NOT EXISTS outbound_orders (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 出库明细表
+CREATE TABLE IF NOT EXISTS outbound_items (
+  id SERIAL PRIMARY KEY,
+  outbound_id INTEGER REFERENCES outbound_orders(id) ON DELETE CASCADE,
+  material_name TEXT NOT NULL,
+  material_code TEXT,
+  quantity NUMERIC(15,2) NOT NULL DEFAULT 0,
+  unit TEXT DEFAULT 'pcs',
+  batch_no TEXT,
+  remarks TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 物流单
 CREATE TABLE IF NOT EXISTS logistics_orders (
   id SERIAL PRIMARY KEY,
@@ -585,6 +598,7 @@ async function seedFresh(t) {
 async function ensureColumns() {
   await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS approval_signature TEXT', []);
   await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT \'[]\'', []);
+  await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS attachments TEXT', []);
   await db.query('ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS approval_chain TEXT DEFAULT \'[]\'', []);
   // inquiries 加审批字段
   await db.query("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_tech'", []);
@@ -623,6 +637,28 @@ async function ensureColumns() {
   await db.query('ALTER TABLE inventory ADD COLUMN IF NOT EXISTS entity_id INTEGER REFERENCES entities(id)', []);
   await db.query('ALTER TABLE inbound_orders ADD COLUMN IF NOT EXISTS entity_id INTEGER REFERENCES entities(id)', []);
   await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS entity_id INTEGER REFERENCES entities(id)', []);
+  // 出库单审批字段
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS approval_status TEXT', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS approval_dept_manager TEXT', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS approval_ops_director TEXT', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS approval_tech_director TEXT', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS approval_gm TEXT', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS approval_remark TEXT', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS rejected_by TEXT', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS rejection_reason TEXT', []);
+  await db.query('ALTER TABLE outbound_orders ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP', []);
+  // 出库明细表
+  await db.query(`CREATE TABLE IF NOT EXISTS outbound_items (
+    id SERIAL PRIMARY KEY,
+    outbound_id INTEGER REFERENCES outbound_orders(id) ON DELETE CASCADE,
+    material_name TEXT NOT NULL,
+    material_code TEXT,
+    quantity NUMERIC(15,2) NOT NULL DEFAULT 0,
+    unit TEXT DEFAULT 'pcs',
+    batch_no TEXT,
+    remarks TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`, []);
 }
 
 // 幂等新增角色

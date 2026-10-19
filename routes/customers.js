@@ -49,7 +49,7 @@ module.exports = function(db) {
       // 审批列表自审拦截：有审批角色的用户看不到自己创建的待审批记录
       const selfApprovalFilter = isViewer ? ' AND (created_by IS NULL OR created_by != ?)' : '';
       const baseParams = isViewer ? (selfApprovalFilter ? [req.user.id] : []) : [req.user.id];
-      const baseSql = 'SELECT * FROM customers WHERE 1=1' + ownerFilter + selfApprovalFilter;
+      const baseSql = 'SELECT id, customer_code, company_type, name, company, short_name, tax_number, address, contact_person, contact_position, phone, email, whatsapp, other_contact, notes, product_types, estimated_kw, estimated_kwh, locations, grade, source_channel, primary_owner, salesperson, approval_status, created_by, created_at, updated_at FROM customers WHERE 1=1' + ownerFilter + selfApprovalFilter;
 
       let customers;
       const statusFilter = req.query.approval_status;
@@ -105,7 +105,8 @@ module.exports = function(db) {
         company_type, name, company, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, product_types, estimated_kw, estimated_kwh, locations,
-        grade, source_channel, primary_owner, salesperson, approval_status
+        grade, source_channel, primary_owner, salesperson, approval_status,
+        attachments
       } = req.body;
 
       // 自动生成客户编码
@@ -122,8 +123,8 @@ module.exports = function(db) {
         INSERT INTO customers (customer_code, company_type, name, company, short_name, tax_number, address,
           contact_person, contact_position, phone, email, whatsapp, other_contact,
           notes, product_types, estimated_kw, estimated_kwh, locations,
-          grade, source_channel, primary_owner, salesperson, approval_status, status, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+          grade, source_channel, primary_owner, salesperson, approval_status, attachments, status, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
       `, [
         code, company_type || '', name || '', company || '', short_name || '', tax_number || '', address || '',
         contact_person || '', contact_position || '', phone || '', email || '', whatsapp || '', other_contact || '',
@@ -131,6 +132,7 @@ module.exports = function(db) {
         estimated_kw || null, estimated_kwh || null,
         Array.isArray(locations) ? JSON.stringify(locations) : (locations || ''),
         grade || '', source_channel || '', primary_owner || '', salesperson || '', approval_status || 'pending_ops',
+        Array.isArray(attachments) ? JSON.stringify(attachments) : (attachments || null),
         req.user.id
       ]);
 
@@ -173,7 +175,7 @@ module.exports = function(db) {
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, product_types, estimated_kw, estimated_kwh, locations,
         grade, source_channel, primary_owner, salesperson, approval_status,
-        customer_code
+        customer_code, attachments
       } = req.body;
 
       // 如果传了 customer_code，检查是否与已有记录重复
@@ -186,6 +188,12 @@ module.exports = function(db) {
         if (dup) {
           return res.status(400).json({ success: false, error: '客户编码已存在：' + dup.customer_code });
         }
+      }
+
+      // 处理 attachments：如果是数组则序列化；如果是 undefined 则不更新（保持原值）
+      let attachmentsValue;
+      if (req.body.hasOwnProperty('attachments')) {
+        attachmentsValue = Array.isArray(attachments) ? JSON.stringify(attachments) : (attachments || null);
       }
 
       await db.run(`
@@ -213,6 +221,7 @@ module.exports = function(db) {
           primary_owner = COALESCE(?, primary_owner),
           salesperson = COALESCE(?, salesperson),
           approval_status = COALESCE(?, approval_status),
+          attachments = COALESCE(?, attachments),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [
@@ -223,6 +232,7 @@ module.exports = function(db) {
         estimated_kw, estimated_kwh,
         Array.isArray(locations) ? JSON.stringify(locations) : locations,
         grade, source_channel, primary_owner, salesperson, approval_status,
+        attachmentsValue !== undefined ? attachmentsValue : null,
         req.params.id
       ]);
 

@@ -469,6 +469,18 @@ tailwind.config = {
     </div>
   </div>
 
+  <!-- 区块5：附件 -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+    <h4 class="font-semibold text-gray-800 mb-4">附件 <span class="text-xs text-gray-400 font-normal">/ Lampiran</span></h4>
+    <p class="text-xs text-gray-500 mb-3">支持现场照片、客户文档等，单个文件最大 5MB / Foto lapangan, dokumen pelanggan, dll. Maks 5MB per file</p>
+    <div id="cust-attachment-drop" class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50 transition mb-3" onclick="document.getElementById('cust-attachment-input').click()">
+      <svg class="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+      <p class="text-sm text-gray-600">点击或拖拽文件到此处上传<br><span class="text-xs text-gray-400">Klik atau seret file ke sini untuk mengunggah</span></p>
+      <input type="file" id="cust-attachment-input" class="hidden" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" onchange="onCustAttachmentSelected(this)">
+    </div>
+    <div id="cust-attachment-list" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+  </div>
+
   <!-- 底部按钮区 -->
   <div class="flex gap-3">
     <button class="btn-primary" onclick="submitCustomer('pending_ops')">提交审批<br><span class="text-[11px] text-gray-400">Kirim Persetujuan</span></button>
@@ -496,6 +508,106 @@ tailwind.config = {
       btn.closest('.project-location-item').remove();
     }
   }
+
+  // ===== 客户附件功能 =====
+  var _custAttachments = []; // { id, name, type, size, data (base64 data URL) }
+
+  function onCustAttachmentSelected(input) {
+    var files = Array.from(input.files || []);
+    files.forEach(function(file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('文件 "' + file.name + '" 超过 5MB 限制，已跳过。\nFile "' + file.name + '" melebihi batas 5MB, dilewati.');
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        _custAttachments.push({
+          id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          data: e.target.result
+        });
+        renderCustAttachmentList();
+      };
+      reader.readAsDataURL(file);
+    });
+    input.value = '';
+  }
+
+  function removeCustAttachment(id) {
+    _custAttachments = _custAttachments.filter(function(a){ return a.id !== id; });
+    renderCustAttachmentList();
+  }
+
+  function renderCustAttachmentList() {
+    var container = document.getElementById('cust-attachment-list');
+    if (!container) return;
+    if (_custAttachments.length === 0) { container.innerHTML = ''; return; }
+    container.innerHTML = _custAttachments.map(function(a) {
+      var isImage = a.type && a.type.startsWith('image/');
+      var sizeStr = a.size < 1024*1024 ? (a.size/1024).toFixed(0) + 'KB' : (a.size/1024/1024).toFixed(1) + 'MB';
+      var thumb = isImage
+        ? '<img src="' + a.data + '" class="w-full h-24 object-cover rounded-lg border border-gray-200">'
+        : '<div class="w-full h-24 flex items-center justify-center bg-gray-100 rounded-lg border border-gray-200"><span class="text-2xl text-gray-400">📄</span></div>';
+      return '<div class="relative group">' + thumb +
+        '<p class="text-xs text-gray-600 mt-1 truncate" title="' + a.name + '">' + a.name + '</p>' +
+        '<p class="text-[11px] text-gray-400">' + sizeStr + '</p>' +
+        '<button onclick="removeCustAttachment(\'' + a.id + '\')" class="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition flex items-center justify-center hover:bg-red-600">✕</button>' +
+        (isImage ? '<button onclick="previewCustImage(\'' + a.id + '\')" class="absolute top-1 left-1 w-6 h-6 bg-black/40 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition flex items-center justify-center">🔍</button>' : '') +
+        '</div>';
+    }).join('');
+  }
+
+  function previewCustImage(id) {
+    var att = _custAttachments.find(function(a){ return a.id === id; });
+    if (!att) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4';
+    overlay.onclick = function(){ overlay.remove(); };
+    overlay.innerHTML = '<img src="' + att.data + '" class="max-w-full max-h-full rounded-lg shadow-2xl">';
+    document.body.appendChild(overlay);
+  }
+
+  function previewVdAttachment(idx) {
+    if (!_viewCustomerData) return;
+    var atts = [];
+    try { atts = _viewCustomerData.attachments ? (typeof _viewCustomerData.attachments === 'string' ? JSON.parse(_viewCustomerData.attachments) : _viewCustomerData.attachments) : []; } catch(e) { return; }
+    var a = atts[idx];
+    if (!a || !a.data) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4';
+    overlay.onclick = function(){ overlay.remove(); };
+    overlay.innerHTML = '<img src="' + a.data + '" class="max-w-full max-h-full rounded-lg shadow-2xl">';
+    document.body.appendChild(overlay);
+  }
+
+  // 拖拽上传
+  (function(){
+    var drop = document.getElementById('cust-attachment-drop');
+    if (!drop) return;
+    ['dragenter','dragover'].forEach(function(ev){
+      drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('border-brand-400','bg-brand-50'); });
+    });
+    ['dragleave','drop'].forEach(function(ev){
+      drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('border-brand-400','bg-brand-50'); });
+    });
+    drop.addEventListener('drop', function(e) {
+      var files = Array.from(e.dataTransfer.files || []);
+      files.forEach(function(file) {
+        if (file.size > 5 * 1024 * 1024) {
+          alert('文件 "' + file.name + '" 超过 5MB，已跳过。');
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          _custAttachments.push({ id: Date.now()+'_'+Math.random().toString(36).slice(2,8), name: file.name, type: file.type, size: file.size, data: ev.target.result });
+          renderCustAttachmentList();
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  })();
 
   function collectCustomerFormData() {
     // 收集产品类型
@@ -538,7 +650,8 @@ tailwind.config = {
         ? document.getElementById('cust-source-custom').value.trim()
         : document.getElementById('cust-source').value),
       primary_owner: document.getElementById('cust-primary-owner').value.trim(),
-      salesperson: document.getElementById('cust-salesperson').value
+      salesperson: document.getElementById('cust-salesperson').value,
+      attachments: _custAttachments.map(function(a){ return { name: a.name, type: a.type, size: a.size, data: a.data }; })
     };
   }
 
@@ -592,6 +705,10 @@ tailwind.config = {
           document.querySelectorAll('#page-customer-new textarea').forEach(function(ta) { ta.value = ''; });
           // 重置复选框
           document.querySelectorAll('#page-customer-new input[type=checkbox]').forEach(function(cb) { cb.checked = false; });
+          // 清空附件
+          _custAttachments = [];
+          var attList = document.getElementById('cust-attachment-list');
+          if (attList) attList.innerHTML = '';
           // 重置来源自定义框隐藏
           var srcCustom = document.getElementById('cust-source-custom');
           if (srcCustom) srcCustom.classList.add('hidden');
@@ -1973,6 +2090,24 @@ function filterOutboundList() {
     set('vd-primary-owner', c.primary_owner || '-');
     set('vd-status', c.approval_status === 'approved' ? '已批准 / Disetujui' : (c.approval_status === 'draft' ? '草稿 / Draft' : '待审批 / Menunggu'));
     set('vd-created', (c.created_at || '').slice(0, 10));
+    // 渲染附件
+    var attContainer = document.getElementById('vd-attachments');
+    if (attContainer) {
+      var atts = [];
+      try { atts = c.attachments ? (typeof c.attachments === 'string' ? JSON.parse(c.attachments) : c.attachments) : []; } catch(e) { atts = []; }
+      if (atts.length === 0) {
+        attContainer.innerHTML = '<p class="text-sm text-gray-400 col-span-full">暂无附件 / Belum ada lampiran</p>';
+      } else {
+        attContainer.innerHTML = atts.map(function(a, i) {
+          var isImage = a.type && a.type.startsWith('image/');
+          var sizeStr = a.size < 1024*1024 ? (a.size/1024).toFixed(0) + 'KB' : (a.size/1024/1024).toFixed(1) + 'MB';
+          var thumb = isImage
+            ? '<img src="' + a.data + '" class="w-full h-24 object-cover rounded-lg border border-gray-200 cursor-pointer" onclick="previewVdAttachment(' + i + ')">'
+            : '<div class="w-full h-24 flex items-center justify-center bg-gray-100 rounded-lg border border-gray-200"><span class="text-2xl text-gray-400">📄</span></div>';
+          return '<div>' + thumb + '<p class="text-xs text-gray-600 mt-1 truncate" title="' + a.name + '">' + a.name + '</p><p class="text-[11px] text-gray-400">' + sizeStr + '</p></div>';
+        }).join('');
+      }
+    }
     navigateTo('customer-detail');
   }
 
@@ -2008,6 +2143,15 @@ function filterOutboundList() {
         if (cb) cb.checked = true;
       });
     }
+    // 加载已有附件
+    _custAttachments = [];
+    try {
+      var existingAtts = c.attachments ? (typeof c.attachments === 'string' ? JSON.parse(c.attachments) : c.attachments) : [];
+      _custAttachments = existingAtts.map(function(a, i) {
+        return { id: 'existing_' + i + '_' + Date.now(), name: a.name, type: a.type, size: a.size, data: a.data };
+      });
+    } catch(e) { _custAttachments = []; }
+    renderCustAttachmentList();
     // 保存当前编辑的 ID
     document.getElementById('cust-code').setAttribute('data-edit-id', c.id);
     navigateTo('customer-new');
@@ -2361,6 +2505,11 @@ function filterOutboundList() {
       <div><span class="text-gray-500">协助业务员 / Sales:</span><br><span id="vd-sales">-</span></div>
       <div><span class="text-gray-500">审批状态 / Status:</span><br><span id="vd-status">-</span></div>
     </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+    <h4 class="font-semibold text-gray-800 mb-4">附件 <span class="text-xs text-gray-400 font-normal">/ Lampiran</span></h4>
+    <div id="vd-attachments" class="grid grid-cols-2 md:grid-cols-4 gap-3"><p class="text-sm text-gray-400 col-span-full">暂无附件 / Belum ada lampiran</p></div>
   </div>
 
   <div class="flex gap-3">
@@ -6360,6 +6509,11 @@ function navigateTo(pageId) {
     }
     if (pageId === 'approval-pending') { switchApprovalModule('customer'); }
     if (pageId === 'customer-follow') { loadFollowUpList(); loadFollowUpCustomerOptions(); }
+    if (pageId === 'customer-new' && !document.getElementById('cust-code').getAttribute('data-edit-id')) {
+      _custAttachments = [];
+      var attList = document.getElementById('cust-attachment-list');
+      if (attList) attList.innerHTML = '';
+    }
     if (pageId === 'customer-follow-new') {
       loadFollowUpCustomerOptions().then(function() {
         resetFollowUpForm();
