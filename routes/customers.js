@@ -172,11 +172,25 @@ module.exports = function(db) {
         company_type, name, company, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, product_types, estimated_kw, estimated_kwh, locations,
-        grade, source_channel, primary_owner, salesperson, approval_status
+        grade, source_channel, primary_owner, salesperson, approval_status,
+        customer_code
       } = req.body;
+
+      // 如果传了 customer_code，检查是否与已有记录重复
+      if (customer_code && customer_code.trim()) {
+        const newCode = customer_code.trim();
+        const dup = await db.get(
+          "SELECT id, customer_code FROM customers WHERE UPPER(customer_code) = UPPER(?) AND id != ?",
+          [newCode, req.params.id]
+        );
+        if (dup) {
+          return res.status(400).json({ success: false, error: '客户编码已存在：' + dup.customer_code });
+        }
+      }
 
       await db.run(`
         UPDATE customers SET
+          customer_code = COALESCE(?, customer_code),
           company_type = COALESCE(?, company_type),
           name = COALESCE(?, name),
           company = COALESCE(?, company),
@@ -202,6 +216,7 @@ module.exports = function(db) {
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [
+        customer_code ? customer_code.trim() : null,
         company_type, name, company, short_name, tax_number, address,
         contact_person, contact_position, phone, email, whatsapp, other_contact,
         initial_needs, Array.isArray(product_types) ? product_types.join(',') : product_types,
