@@ -58,7 +58,18 @@ module.exports = function(db) {
   router.post('/', async (req, res) => {
     try {
       const d = req.body;
-      const inquiryNo = d.inquiry_no || ('LT-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-3));
+      let inquiryNo = d.inquiry_no;
+      if (!inquiryNo) {
+        const year = new Date().getFullYear();
+        const prefix = 'LT-' + year + '-';
+        const lastRow = await db.get("SELECT inquiry_no FROM inquiries WHERE inquiry_no LIKE ? ORDER BY id DESC LIMIT 1", [prefix + '%']);
+        let nextNum = 1;
+        if (lastRow && lastRow.inquiry_no) {
+          const lastNum = parseInt(lastRow.inquiry_no.replace(prefix, ''), 10);
+          if (!isNaN(lastNum)) nextNum = lastNum + 1;
+        }
+        inquiryNo = prefix + String(nextNum).padStart(3, '0');
+      }
 
       const result = await db.run(`
         INSERT INTO inquiries (inquiry_no, company_name, contact_person, phone, email, product_description,

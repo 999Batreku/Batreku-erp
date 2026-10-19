@@ -8083,7 +8083,7 @@ function renderInquiryTable() {
     var apLabel = apSt === 'pending_tech' ? {zh:'待技术总监指导', cls:'badge-yellow'} :
                   apSt === 'approved' ? {zh:'已通过', cls:'badge-green'} :
                   apSt === 'rejected' ? {zh:'已驳回', cls:'badge-red'} : {zh: apSt, cls:'badge-blue'};
-    var techGuide = item.tech_guidance ? '<span class="text-xs text-green-600" title="' + item.tech_guidance + '">已指导</span>' : (apSt === 'approved' ? '<span class="text-xs text-gray-400">-</span>' : '<span class="text-xs text-gray-300">待指导</span>');
+    var techGuide = item.tech_guidance ? '<a class="text-xs text-green-600 hover:underline cursor-pointer" onclick="viewInquiryTechGuidance(' + item.id + ',\'' + item.inquiry_no + '\')">已指导</a>' : (apSt === 'approved' ? '<span class="text-xs text-gray-400">-</span>' : '<span class="text-xs text-gray-300">待指导</span>');
     var goToQuoteBtn = apSt === 'approved' ? ' <button class="text-green-600 text-sm hover:underline" onclick="goToQuoteFromInquiry(' + item.id + ')">去报价<br><span class="text-[11px] text-gray-400">Ke Penawaran</span></button>' : '';
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
@@ -8104,6 +8104,32 @@ function renderInquiryTable() {
 
   var pag = document.getElementById('inquiry-pagination');
   if (pag) pag.textContent = '显示 1-' + inquiryData.length + ' 共 ' + inquiryData.length + ' 条';
+}
+
+function viewInquiryTechGuidance(id, no) {
+  apiCall('GET', '/inquiries/' + id).then(function(res) {
+    if (!res || !res.success || !res.data) { alert('加载失败 / Gagal dimuat'); return; }
+    var d = res.data;
+    var guide = d.tech_guidance || '';
+    var html =
+      '<div class="fixed inset-0 z-50 flex items-center justify-center px-4" onclick="if(event.target===this){this.remove();}">' +
+      '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">' +
+        '<div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">' +
+          '<h3 class="text-base font-bold text-green-800">技术指导内容 / Panduan Teknis <span class="text-sm font-normal text-gray-400 ml-2">' + (no || '') + '</span></h3>' +
+          '<button onclick="this.closest(\'.fixed\').remove()" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>' +
+        '</div>' +
+        '<div class="px-6 py-5">' +
+          '<div class="text-sm font-medium text-gray-500 mb-2">询盘公司 / Perusahaan:</div>' +
+          '<div class="text-sm text-gray-900 font-medium mb-4">' + (d.company_name || '-') + '</div>' +
+          '<div class="text-sm font-medium text-gray-500 mb-2">指导意见 / Panduan:</div>' +
+          '<div class="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800 whitespace-pre-wrap break-words max-h-[50vh] overflow-y-auto">' + (guide || '暂无详细记录 / Belum ada catatan') + '</div>' +
+          '<div class="mt-3 text-xs text-gray-400">审批状态: ' + (d.approval_status || '-') + ' · 操作人: ' + (d.approved_by_name || d.approved_by || '-') + '</div>' +
+        '</div>' +
+      '</div></div>';
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap.firstElementChild);
+  });
 }
 
 function viewInquiry(id) {
